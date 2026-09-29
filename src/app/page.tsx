@@ -20,6 +20,7 @@ export default function HomePage() {
     handleShare,
     handleLike,
     handleLinkClick,
+    handleAddLink,
   } = useProfile();
 
   return (
@@ -47,6 +48,7 @@ export default function HomePage() {
         <LinkList
           links={profile.links}
           onLinkClick={handleLinkClick}
+          onAddLink={handleAddLink}
         />
 
         {/* 6. 소셜 아이콘 바 */}

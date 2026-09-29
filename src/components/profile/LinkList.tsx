@@ -16,10 +16,20 @@ import { LinkItem, LinkCategoryType, CategoryItem } from "@/types/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
+import { AddLinkDialog } from "@/components/profile/AddLinkDialog";
 
 interface LinkListProps {
   links: LinkItem[];
   onLinkClick: (id: string, url: string) => void;
+  onAddLink?: (data: {
+    title: string;
+    url: string;
+    subtitle?: string;
+    category?: "project" | "blog" | "social" | "contact";
+    badge?: string;
+    badgeColor?: string;
+    iconType?: string;
+  }) => void;
 }
 
 const CATEGORIES: CategoryItem[] = [
@@ -84,7 +94,7 @@ function renderLinkIcon(link: LinkItem) {
   return <ExternalLink className={`${iconClass} text-[#333D4B]`} />;
 }
 
-export function LinkList({ links, onLinkClick }: LinkListProps) {
+export function LinkList({ links, onLinkClick, onAddLink }: LinkListProps) {
   const [activeCategory, setActiveCategory] = useState<LinkCategoryType>("all");
 
   const activeLinks = links
@@ -109,7 +119,11 @@ export function LinkList({ links, onLinkClick }: LinkListProps) {
               {displayedLinks.length}
             </Badge>
           </div>
-          <span className="text-[12px] text-[#8B95A1]">순서대로 정렬됨</span>
+          {onAddLink ? (
+            <AddLinkDialog onAddLink={onAddLink} />
+          ) : (
+            <span className="text-[12px] text-[#8B95A1]">순서대로 정렬됨</span>
+          )}
         </div>
 
         {/* 카테고리 칩 필터 (TDS Chip 재사용) */}

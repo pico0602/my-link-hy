@@ -131,6 +131,56 @@ export function useProfile() {
     }
   }, []);
 
+  // 링크 추가
+  const handleAddLink = useCallback((data: {
+    title: string;
+    url: string;
+    subtitle?: string;
+    category?: "project" | "blog" | "social" | "contact";
+    badge?: string;
+    badgeColor?: string;
+    iconType?: string;
+  }) => {
+    let formattedUrl = data.url.trim();
+    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://") && !formattedUrl.startsWith("mailto:")) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const newLink = {
+      id: `link-${Date.now()}`,
+      title: data.title.trim(),
+      subtitle: data.subtitle?.trim() || undefined,
+      url: formattedUrl,
+      category: data.category || "project",
+      badge: data.badge?.trim() || undefined,
+      badgeColor: data.badgeColor || (data.badge === "신규" ? "#00B460" : data.badge === "대표" ? "#3182F6" : "#333D4B"),
+      iconType: data.iconType || "custom",
+      isPinned: false,
+      isActive: true,
+      order: 0, // 최상단에 배치
+      clicks: 0,
+      clickCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    setProfile((prev) => {
+      // 기존 링크들의 order를 1씩 밀어내고 맨 앞에 추가
+      const reorderedLinks = prev.links.map((link) => ({
+        ...link,
+        order: link.order + 1,
+      }));
+      const updatedLinks = [newLink, ...reorderedLinks];
+      const updated = {
+        ...prev,
+        links: updatedLinks,
+      };
+      saveStoredProfile(updated);
+      return updated;
+    });
+
+    showToast("새 링크가 추가되었어요");
+  }, [showToast]);
+
   return {
     profile,
     isMounted,
@@ -143,5 +193,6 @@ export function useProfile() {
     handleShare,
     handleLike,
     handleLinkClick,
+    handleAddLink,
   };
 }
