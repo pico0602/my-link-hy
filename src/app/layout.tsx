@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mylink - 마이링크",
-  description: "마이링크(mylink) 서비스",
+  title: "임채윤 (Chaeyoon Lim) | 마이링크",
+  description: "임채윤의 개인 프로필 및 링크 모음 (Link-in-bio) 웹 애플리케이션",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
