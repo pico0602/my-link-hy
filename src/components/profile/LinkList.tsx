@@ -22,6 +22,7 @@ import { AddLinkDialog } from "@/components/profile/AddLinkDialog";
 import { InlineEditLink } from "@/components/profile/InlineEditLink";
 import { DeleteLinkDialog } from "@/components/profile/DeleteLinkDialog";
 import { AddLinkInput } from "@/lib/firestore";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface LinkListProps {
   links: LinkItem[];
@@ -247,10 +248,19 @@ export function LinkList({
                           </Badge>
                         )}
                       </div>
-                      {link.subtitle && (
-                        <p className="text-[13px] text-[#8B95A1] truncate mt-0.5 max-w-[200px] xs:max-w-[240px] sm:max-w-[280px]">
-                          {link.subtitle}
-                        </p>
+                      {(link.subtitle || link.updatedAt) && (
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {link.subtitle && (
+                            <p className="text-[13px] text-[#8B95A1] truncate max-w-[180px] xs:max-w-[220px] sm:max-w-[260px]">
+                              {link.subtitle}
+                            </p>
+                          )}
+                          {link.updatedAt && (
+                            <span className="text-[11px] text-[#B0B8C1] shrink-0">
+                              {link.subtitle ? "· " : ""}수정됨 {formatRelativeTime(link.updatedAt)}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

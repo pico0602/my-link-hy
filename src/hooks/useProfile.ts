@@ -226,6 +226,7 @@ export function useProfile() {
                 badge: data.badge !== undefined ? data.badge : link.badge,
                 category: data.category !== undefined ? data.category : link.category,
                 iconType: data.iconType !== undefined ? data.iconType : link.iconType,
+                updatedAt: new Date().toISOString(),
               };
             }
             return link;

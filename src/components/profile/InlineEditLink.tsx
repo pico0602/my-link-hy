@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Chip } from "@/components/ui/chip";
 import { LinkItem } from "@/types/link";
+import { formatRelativeTime } from "@/lib/utils";
 import {
   linkFormSchema,
   LinkFormValues,
@@ -88,9 +89,16 @@ export function InlineEditLink({ link, onSave, onCancel }: InlineEditLinkProps) 
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E8F3FF] text-[#3182F6]">
             <Edit3 className="h-4 w-4" />
           </div>
-          <span className="text-[14px] font-bold text-[#191F28]">
-            링크 정보 수정
-          </span>
+          <div>
+            <span className="text-[14px] font-bold text-[#191F28] block">
+              링크 정보 수정
+            </span>
+            {link.updatedAt && (
+              <span className="text-[11px] text-[#8B95A1]">
+                최근 수정: {formatRelativeTime(link.updatedAt)}
+              </span>
+            )}
+          </div>
         </div>
         <button
           type="button"

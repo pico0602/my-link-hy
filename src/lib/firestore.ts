@@ -181,6 +181,19 @@ export function parseFirestoreLinkDoc(docSnap: any): LinkItem {
     }
   }
 
+  let updatedAt: string | undefined = undefined;
+  if (data.updatedAt) {
+    if (typeof data.updatedAt === "string") {
+      updatedAt = data.updatedAt;
+    } else if (typeof data.updatedAt.toDate === "function") {
+      updatedAt = data.updatedAt.toDate().toISOString();
+    } else if (data.updatedAt.seconds !== undefined) {
+      updatedAt = new Date(data.updatedAt.seconds * 1000).toISOString();
+    } else if (data.updatedAt instanceof Date) {
+      updatedAt = data.updatedAt.toISOString();
+    }
+  }
+
   return {
     id: docSnap.id,
     title: data.title || "",
@@ -196,6 +209,7 @@ export function parseFirestoreLinkDoc(docSnap: any): LinkItem {
     clicks: data.clicks ?? data.clickCount ?? 0,
     clickCount: data.clickCount ?? data.clicks ?? 0,
     createdAt,
+    updatedAt,
   };
 }
 

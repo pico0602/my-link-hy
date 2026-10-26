@@ -37,6 +37,7 @@ export interface LinkItem {
   clicks?: number;
   clickCount?: number;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface DailyAnalytics {
