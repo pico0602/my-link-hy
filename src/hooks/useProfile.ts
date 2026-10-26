@@ -12,9 +12,13 @@ import {
 } from "@/lib/storage";
 import {
   addLinkToFirestore,
+  updateLinkInFirestore,
+  deleteLinkFromFirestore,
   subscribeFirestoreLinks,
   sortByCreatedAtDesc,
   AddLinkInput,
+  UpdateLinkInput,
+  formatUrl,
 } from "@/lib/firestore";
 
 export function useProfile() {
@@ -203,6 +207,69 @@ export function useProfile() {
     [showToast]
   );
 
+  // 링크 수정 (Firestore users/anonymous/links/{id} 문서 업데이트)
+  const handleUpdateLink = useCallback(
+    async (id: string, data: UpdateLinkInput) => {
+      try {
+        await updateLinkInFirestore(id, data);
+
+        // 로컬 상태 즉시 반영 (실시간 리스너 동기화 전 빠른 반응)
+        setProfile((prev) => {
+          const nextLinks = prev.links.map((link) => {
+            if (link.id === id) {
+              const formattedUrl = data.url ? formatUrl(data.url) : link.url;
+              return {
+                ...link,
+                ...data,
+                url: formattedUrl,
+                subtitle: data.subtitle !== undefined ? data.subtitle : link.subtitle,
+                badge: data.badge !== undefined ? data.badge : link.badge,
+                category: data.category !== undefined ? data.category : link.category,
+                iconType: data.iconType !== undefined ? data.iconType : link.iconType,
+              };
+            }
+            return link;
+          });
+
+          const updated = { ...prev, links: nextLinks };
+          saveStoredProfile(updated);
+          return updated;
+        });
+
+        showToast("링크가 수정되었어요");
+      } catch (error) {
+        console.error("Firestore 링크 수정 실패:", error);
+        showToast("링크 수정 중 오류가 발생했어요.");
+        throw error;
+      }
+    },
+    [showToast]
+  );
+
+  // 링크 삭제 (Firestore users/anonymous/links/{id} 문서 삭제)
+  const handleDeleteLink = useCallback(
+    async (id: string) => {
+      try {
+        await deleteLinkFromFirestore(id);
+
+        // 로컬 상태 즉시 반영
+        setProfile((prev) => {
+          const nextLinks = prev.links.filter((link) => link.id !== id);
+          const updated = { ...prev, links: nextLinks };
+          saveStoredProfile(updated);
+          return updated;
+        });
+
+        showToast("링크가 삭제되었어요");
+      } catch (error) {
+        console.error("Firestore 링크 삭제 실패:", error);
+        showToast("링크 삭제 중 오류가 발생했어요.");
+        throw error;
+      }
+    },
+    [showToast]
+  );
+
   return {
     profile,
     isMounted,
@@ -217,5 +284,7 @@ export function useProfile() {
     handleLike,
     handleLinkClick,
     handleAddLink,
+    handleUpdateLink,
+    handleDeleteLink,
   };
 }

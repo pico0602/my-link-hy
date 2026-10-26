@@ -11,12 +11,17 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { LinkItem, LinkCategoryType, CategoryItem } from "@/types/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
 import { AddLinkDialog } from "@/components/profile/AddLinkDialog";
+import { InlineEditLink } from "@/components/profile/InlineEditLink";
+import { DeleteLinkDialog } from "@/components/profile/DeleteLinkDialog";
+import { AddLinkInput } from "@/lib/firestore";
 
 interface LinkListProps {
   links: LinkItem[];
@@ -31,6 +36,8 @@ interface LinkListProps {
     badgeColor?: string;
     iconType?: string;
   }) => void | Promise<any>;
+  onUpdateLink?: (id: string, data: Partial<AddLinkInput>) => void | Promise<any>;
+  onDeleteLink?: (id: string) => void | Promise<any>;
 }
 
 const CATEGORIES: CategoryItem[] = [
@@ -95,8 +102,17 @@ function renderLinkIcon(link: LinkItem) {
   return <ExternalLink className={`${iconClass} text-[#333D4B]`} />;
 }
 
-export function LinkList({ links, isLoading = false, onLinkClick, onAddLink }: LinkListProps) {
+export function LinkList({
+  links,
+  isLoading = false,
+  onLinkClick,
+  onAddLink,
+  onUpdateLink,
+  onDeleteLink,
+}: LinkListProps) {
   const [activeCategory, setActiveCategory] = useState<LinkCategoryType>("all");
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+  const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
 
   // createdAt 기준 최신순(내림차순) 정렬 보장
   const activeLinks = links
@@ -113,120 +129,203 @@ export function LinkList({ links, isLoading = false, onLinkClick, onAddLink }: L
       : activeLinks.filter((link) => link.category === activeCategory);
 
   return (
-    <Card className="overflow-hidden">
-      {/* 헤더 및 카테고리 필터 탭 */}
-      <div className="px-5 pt-4 pb-2">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[16px] font-bold text-[#191F28] tracking-tight">
-              바로가기 링크
-            </h2>
-            <Badge variant="default" className="rounded-full">
-              {displayedLinks.length}
-            </Badge>
+    <>
+      <Card className="overflow-hidden">
+        {/* 헤더 및 카테고리 필터 탭 */}
+        <div className="px-5 pt-4 pb-2">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[16px] font-bold text-[#191F28] tracking-tight">
+                바로가기 링크
+              </h2>
+              <Badge variant="default" className="rounded-full">
+                {displayedLinks.length}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-[#8B95A1]">최신순</span>
+              {onAddLink && <AddLinkDialog onAddLink={onAddLink} />}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] text-[#8B95A1]">최신순</span>
-            {onAddLink && <AddLinkDialog onAddLink={onAddLink} />}
-          </div>
-        </div>
 
-        {/* 카테고리 칩 필터 (TDS Chip 재사용) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none -mx-1 px-1">
-          {CATEGORIES.map((cat) => (
-            <Chip
-              key={cat.id}
-              active={activeCategory === cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className="h-7 text-[12px] px-3"
-            >
-              {cat.name}
-            </Chip>
-          ))}
-        </div>
-      </div>
-
-      {/* 링크 목록 리스트 */}
-      <div className="divide-y divide-[#F2F4F6] border-t border-[#F2F4F6]">
-        {isLoading ? (
-          <div className="py-10 text-center space-y-2">
-            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#3182F6] border-t-transparent" />
-            <p className="text-[13px] text-[#8B95A1]">링크 목록을 불러오는 중...</p>
-          </div>
-        ) : displayedLinks.length === 0 ? (
-          <div className="py-10 text-center px-4">
-            <p className="text-[14px] font-medium text-[#4E5968] mb-1">
-              등록된 링크가 없어요
-            </p>
-            <p className="text-[12px] text-[#8B95A1] mb-4">
-              {activeCategory === "all"
-                ? "상단의 '링크 추가' 버튼을 눌러 첫 링크를 추가해 보세요."
-                : "해당 카테고리에 등록된 링크가 없습니다."}
-            </p>
-            {onAddLink && activeCategory === "all" && (
-              <AddLinkDialog onAddLink={onAddLink} />
-            )}
-          </div>
-        ) : (
-          displayedLinks.map((link) => {
-            const clicks = link.clicks ?? link.clickCount ?? 0;
-
-            return (
-              <button
-                key={link.id}
-                type="button"
-                onClick={() => onLinkClick(link.id, link.url)}
-                className="group flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[#F9FAFB] active:bg-[#F2F4F6] cursor-pointer"
+          {/* 카테고리 칩 필터 (TDS Chip 재사용) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none -mx-1 px-1">
+            {CATEGORIES.map((cat) => (
+              <Chip
+                key={cat.id}
+                active={activeCategory === cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className="h-7 text-[12px] px-3 cursor-pointer"
               >
-                {/* 왼쪽: 아이콘 컨테이너 (44px) + 텍스트 */}
-                <div className="flex items-center gap-3.5 min-w-0 pr-2">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F4F6] group-hover:bg-[#E8F3FF] transition-colors">
-                    {renderLinkIcon(link)}
+                {cat.name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+
+        {/* 링크 목록 리스트 */}
+        <div className="divide-y divide-[#F2F4F6] border-t border-[#F2F4F6]">
+          {isLoading ? (
+            <div className="py-10 text-center space-y-2">
+              <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#3182F6] border-t-transparent" />
+              <p className="text-[13px] text-[#8B95A1]">링크 목록을 불러오는 중...</p>
+            </div>
+          ) : displayedLinks.length === 0 ? (
+            <div className="py-10 text-center px-4">
+              <p className="text-[14px] font-medium text-[#4E5968] mb-1">
+                등록된 링크가 없어요
+              </p>
+              <p className="text-[12px] text-[#8B95A1] mb-4">
+                {activeCategory === "all"
+                  ? "상단의 '링크 추가' 버튼을 눌러 첫 링크를 추가해 보세요."
+                  : "해당 카테고리에 등록된 링크가 없습니다."}
+              </p>
+              {onAddLink && activeCategory === "all" && (
+                <AddLinkDialog onAddLink={onAddLink} />
+              )}
+            </div>
+          ) : (
+            displayedLinks.map((link) => {
+              const isEditing = editingLinkId === link.id;
+              const clicks = link.clicks ?? link.clickCount ?? 0;
+
+              // 인라인 수정 모드일 때
+              if (isEditing) {
+                return (
+                  <div key={link.id} className="px-4 py-2 bg-[#F9FAFB]/60">
+                    <InlineEditLink
+                      link={link}
+                      onSave={async (id, data) => {
+                        if (onUpdateLink) {
+                          await onUpdateLink(id, data);
+                        }
+                        setEditingLinkId(null);
+                      }}
+                      onCancel={() => setEditingLinkId(null)}
+                    />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[15px] font-semibold text-[#191F28] group-hover:text-[#3182F6] transition-colors tracking-tight">
-                        {link.title}
-                      </span>
-                      {link.badge && (
-                        <Badge
-                          variant={
-                            link.badge === "신규"
-                              ? "success"
-                              : link.badge === "대표"
-                              ? "brand"
-                              : "default"
-                          }
-                        >
-                          {link.badge}
-                        </Badge>
+                );
+              }
+
+              return (
+                <div
+                  key={link.id}
+                  className="group flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[#F9FAFB] select-none"
+                >
+                  {/* 왼쪽: 아이콘 컨테이너 (44px) + 텍스트 (클릭 시 링크 이동) */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onLinkClick(link.id, link.url)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onLinkClick(link.id, link.url);
+                      }
+                    }}
+                    className="flex flex-1 items-center gap-3.5 min-w-0 pr-2 cursor-pointer focus:outline-none"
+                  >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F4F6] group-hover:bg-[#E8F3FF] transition-colors">
+                      {renderLinkIcon(link)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[15px] font-semibold text-[#191F28] group-hover:text-[#3182F6] transition-colors tracking-tight">
+                          {link.title}
+                        </span>
+                        {link.badge && (
+                          <Badge
+                            variant={
+                              link.badge === "신규"
+                               ? "success"
+                               : link.badge === "대표"
+                               ? "brand"
+                               : "default"
+                            }
+                          >
+                            {link.badge}
+                          </Badge>
+                        )}
+                      </div>
+                      {link.subtitle && (
+                        <p className="text-[13px] text-[#8B95A1] truncate mt-0.5 max-w-[200px] xs:max-w-[240px] sm:max-w-[280px]">
+                          {link.subtitle}
+                        </p>
                       )}
                     </div>
-                    {link.subtitle && (
-                      <p className="text-[13px] text-[#8B95A1] truncate mt-0.5 max-w-[280px]">
-                        {link.subtitle}
-                      </p>
-                    )}
                   </div>
-                </div>
 
-                {/* 오른쪽: 클릭수 및 Chevron */}
-                <div className="flex items-center gap-2 shrink-0">
-                  {clicks > 0 && (
-                    <span className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-medium text-[#8B95A1]">
-                      <TrendingUp className="w-3 h-3 text-[#B0B8C1]" />
-                      {clicks.toLocaleString()}
-                    </span>
-                  )}
-                  <div className="text-[#B0B8C1] group-hover:text-[#3182F6] group-hover:translate-x-0.5 transition-all">
-                    <ChevronRight className="w-4 h-4" />
+                  {/* 오른쪽: 클릭수 + 항상 표시되는 [수정][삭제] 버튼 + 이동 화살표 */}
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 pl-1">
+                    {clicks > 0 && (
+                      <span className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-medium text-[#8B95A1] mr-1">
+                        <TrendingUp className="w-3 h-3 text-[#B0B8C1]" />
+                        {clicks.toLocaleString()}
+                      </span>
+                    )}
+
+                    {/* 수정 버튼: 항상 표시됨 */}
+                    {onUpdateLink && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingLinkId(link.id);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8B95A1] hover:text-[#3182F6] hover:bg-[#E8F3FF] active:scale-95 transition-all cursor-pointer"
+                        aria-label="링크 수정"
+                        title="링크 수정"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* 삭제 버튼: 항상 표시됨 */}
+                    {onDeleteLink && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingLink(link);
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8B95A1] hover:text-[#F04452] hover:bg-[#FEECEE] active:scale-95 transition-all cursor-pointer"
+                        aria-label="링크 삭제"
+                        title="링크 삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* 외부 이동 Chevron (누르면 링크 열림) */}
+                    <button
+                      type="button"
+                      onClick={() => onLinkClick(link.id, link.url)}
+                      className="p-1 text-[#B0B8C1] group-hover:text-[#3182F6] group-hover:translate-x-0.5 transition-all cursor-pointer"
+                      aria-label="링크 열기"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-    </Card>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
+      {/* 삭제 확인 모달 */}
+      <DeleteLinkDialog
+        open={!!deletingLink}
+        link={deletingLink}
+        onOpenChange={(open) => {
+          if (!open) setDeletingLink(null);
+        }}
+        onConfirmDelete={async (id) => {
+          if (onDeleteLink) {
+            await onDeleteLink(id);
+          }
+        }}
+      />
+    </>
   );
 }

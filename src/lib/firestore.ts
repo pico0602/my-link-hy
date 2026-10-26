@@ -1,6 +1,10 @@
 import {
   collection,
+  doc,
   addDoc,
+  updateDoc,
+  deleteDoc,
+  deleteField,
   getDocs,
   onSnapshot,
   query,
@@ -22,6 +26,13 @@ export function getAnonymousLinksCollection() {
   return collection(db, USERS_COLLECTION, ANONYMOUS_DOC_ID, LINKS_SUBCOLLECTION);
 }
 
+/**
+ * users/anonymous/links/{id} 문서 레퍼런스를 반환합니다.
+ */
+export function getAnonymousLinkDoc(id: string) {
+  return doc(db, USERS_COLLECTION, ANONYMOUS_DOC_ID, LINKS_SUBCOLLECTION, id);
+}
+
 export interface AddLinkInput {
   title: string;
   url: string;
@@ -31,6 +42,8 @@ export interface AddLinkInput {
   badgeColor?: string;
   iconType?: string;
 }
+
+export type UpdateLinkInput = Partial<AddLinkInput>;
 
 /**
  * URL 프로토콜 보정 (http, https, mailto 등이 없으면 https:// 추가)
@@ -90,6 +103,62 @@ export async function addLinkToFirestore(data: AddLinkInput): Promise<LinkItem> 
     id: docRef.id,
     ...(docData as Omit<LinkItem, "id">),
   };
+}
+
+/**
+ * Firestore의 `users/anonymous/links/{id}` 문서를 수정합니다.
+ */
+export async function updateLinkInFirestore(
+  id: string,
+  data: UpdateLinkInput
+): Promise<void> {
+  const docRef = getAnonymousLinkDoc(id);
+  const updateData: Record<string, any> = {};
+
+  if (data.title !== undefined) {
+    updateData.title = data.title.trim();
+  }
+  if (data.url !== undefined) {
+    updateData.url = formatUrl(data.url);
+  }
+  if (data.subtitle !== undefined) {
+    const trimmed = data.subtitle.trim();
+    updateData.subtitle = trimmed.length > 0 ? trimmed : deleteField();
+  }
+  if (data.category !== undefined) {
+    updateData.category = data.category;
+  }
+  if (data.badge !== undefined) {
+    const trimmed = data.badge.trim();
+    if (trimmed.length > 0) {
+      updateData.badge = trimmed;
+      updateData.badgeColor =
+        data.badgeColor ||
+        (trimmed === "신규"
+          ? "#00B460"
+          : trimmed === "대표"
+          ? "#3182F6"
+          : "#333D4B");
+    } else {
+      updateData.badge = deleteField();
+      updateData.badgeColor = deleteField();
+    }
+  }
+  if (data.iconType !== undefined) {
+    updateData.iconType = data.iconType;
+  }
+
+  updateData.updatedAt = new Date().toISOString();
+
+  await updateDoc(docRef, updateData);
+}
+
+/**
+ * Firestore의 `users/anonymous/links/{id}` 문서를 삭제합니다.
+ */
+export async function deleteLinkFromFirestore(id: string): Promise<void> {
+  const docRef = getAnonymousLinkDoc(id);
+  await deleteDoc(docRef);
 }
 
 /**

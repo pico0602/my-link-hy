@@ -18,46 +18,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Chip } from "@/components/ui/chip";
 
-// URL 정규식 패턴 (http, https, mailto, tel 지원 및 프로토콜 생략 도메인 지원)
-const URL_PATTERN =
-  /^(https?:\/\/)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(:\d+)?(\/[^\s]*)?$/i;
-const SPECIAL_PROTOCOLS =
-  /^(mailto:[^\s@]+@[^\s@]+\.[^\s@]+|tel:[0-9\-+]+)$/i;
+import {
+  linkFormSchema,
+  LinkFormValues,
+  CATEGORY_OPTIONS,
+  PRESET_BADGES,
+  URL_PATTERN,
+  detectSmartMetadata,
+} from "@/lib/validations/link";
 
-// Zod 유효성 검증 스키마 정의
-export const addLinkSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "링크 제목을 입력해 주세요.")
-    .min(2, "제목은 2자 이상 입력해 주세요.")
-    .max(30, "제목은 30자 이내로 입력해 주세요."),
-  url: z
-    .string()
-    .trim()
-    .min(1, "웹 주소(URL)를 입력해 주세요.")
-    .refine((val) => !/\s/.test(val), "URL에는 공백이 포함될 수 없어요.")
-    .refine(
-      (val) => URL_PATTERN.test(val) || SPECIAL_PROTOCOLS.test(val),
-      "올바른 웹 주소 형식을 입력해 주세요. (예: https://github.com/my-link)"
-    ),
-  subtitle: z
-    .string()
-    .trim()
-    .max(60, "설명은 60자 이내로 입력해 주세요.")
-    .optional(),
-  category: z.enum(["project", "blog", "social", "contact"]),
-  badge: z
-    .string()
-    .trim()
-    .max(8, "뱃지는 8자 이내로 입력해 주세요.")
-    .optional(),
-  iconType: z.string(),
-});
+export const addLinkSchema = linkFormSchema;
+export type AddLinkFormValues = LinkFormValues;
 
-export type AddLinkFormValues = z.infer<typeof addLinkSchema>;
-
-interface AddLinkDialogProps {
+export interface AddLinkDialogProps {
   onAddLink: (data: {
     title: string;
     url: string;
@@ -69,18 +42,6 @@ interface AddLinkDialogProps {
   }) => void | Promise<any>;
   trigger?: React.ReactNode;
 }
-
-const CATEGORY_OPTIONS: {
-  id: "project" | "blog" | "social" | "contact";
-  name: string;
-}[] = [
-  { id: "project", name: "프로젝트" },
-  { id: "blog", name: "블로그·글" },
-  { id: "social", name: "SNS" },
-  { id: "contact", name: "연락처" },
-];
-
-const PRESET_BADGES = ["신규", "대표", "인기", "추천", "코드", "글"];
 
 export function AddLinkDialog({ onAddLink, trigger }: AddLinkDialogProps) {
   const [open, setOpen] = useState(false);
