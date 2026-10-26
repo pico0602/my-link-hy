@@ -20,6 +20,7 @@ import { AddLinkDialog } from "@/components/profile/AddLinkDialog";
 
 interface LinkListProps {
   links: LinkItem[];
+  isLoading?: boolean;
   onLinkClick: (id: string, url: string) => void;
   onAddLink?: (data: {
     title: string;
@@ -29,7 +30,7 @@ interface LinkListProps {
     badge?: string;
     badgeColor?: string;
     iconType?: string;
-  }) => void;
+  }) => void | Promise<any>;
 }
 
 const CATEGORIES: CategoryItem[] = [
@@ -94,12 +95,17 @@ function renderLinkIcon(link: LinkItem) {
   return <ExternalLink className={`${iconClass} text-[#333D4B]`} />;
 }
 
-export function LinkList({ links, onLinkClick, onAddLink }: LinkListProps) {
+export function LinkList({ links, isLoading = false, onLinkClick, onAddLink }: LinkListProps) {
   const [activeCategory, setActiveCategory] = useState<LinkCategoryType>("all");
 
+  // createdAt 기준 최신순(내림차순) 정렬 보장
   const activeLinks = links
-    .filter((link) => link.isActive)
-    .sort((a, b) => a.order - b.order);
+    .filter((link) => link.isActive !== false)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
 
   const displayedLinks =
     activeCategory === "all"
@@ -119,11 +125,10 @@ export function LinkList({ links, onLinkClick, onAddLink }: LinkListProps) {
               {displayedLinks.length}
             </Badge>
           </div>
-          {onAddLink ? (
-            <AddLinkDialog onAddLink={onAddLink} />
-          ) : (
-            <span className="text-[12px] text-[#8B95A1]">순서대로 정렬됨</span>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-[#8B95A1]">최신순</span>
+            {onAddLink && <AddLinkDialog onAddLink={onAddLink} />}
+          </div>
         </div>
 
         {/* 카테고리 칩 필터 (TDS Chip 재사용) */}
@@ -143,9 +148,24 @@ export function LinkList({ links, onLinkClick, onAddLink }: LinkListProps) {
 
       {/* 링크 목록 리스트 */}
       <div className="divide-y divide-[#F2F4F6] border-t border-[#F2F4F6]">
-        {displayedLinks.length === 0 ? (
-          <div className="py-8 text-center text-[13px] text-[#8B95A1]">
-            해당 카테고리의 링크가 없습니다.
+        {isLoading ? (
+          <div className="py-10 text-center space-y-2">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#3182F6] border-t-transparent" />
+            <p className="text-[13px] text-[#8B95A1]">링크 목록을 불러오는 중...</p>
+          </div>
+        ) : displayedLinks.length === 0 ? (
+          <div className="py-10 text-center px-4">
+            <p className="text-[14px] font-medium text-[#4E5968] mb-1">
+              등록된 링크가 없어요
+            </p>
+            <p className="text-[12px] text-[#8B95A1] mb-4">
+              {activeCategory === "all"
+                ? "상단의 '링크 추가' 버튼을 눌러 첫 링크를 추가해 보세요."
+                : "해당 카테고리에 등록된 링크가 없습니다."}
+            </p>
+            {onAddLink && activeCategory === "all" && (
+              <AddLinkDialog onAddLink={onAddLink} />
+            )}
           </div>
         ) : (
           displayedLinks.map((link) => {

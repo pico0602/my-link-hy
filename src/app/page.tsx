@@ -14,6 +14,7 @@ import { Toast } from "@/components/profile/Toast";
 export default function HomePage() {
   const {
     profile,
+    isLoadingLinks,
     hasLiked,
     toastMessage,
     handleCopyEmail,
@@ -47,6 +48,7 @@ export default function HomePage() {
         {/* 5. 바로가기 링크 리스트 */}
         <LinkList
           links={profile.links}
+          isLoading={isLoadingLinks}
           onLinkClick={handleLinkClick}
           onAddLink={handleAddLink}
         />

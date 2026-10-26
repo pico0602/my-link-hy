@@ -66,7 +66,7 @@ interface AddLinkDialogProps {
     badge?: string;
     badgeColor?: string;
     iconType?: string;
-  }) => void;
+  }) => void | Promise<any>;
   trigger?: React.ReactNode;
 }
 
@@ -84,6 +84,7 @@ const PRESET_BADGES = ["신규", "대표", "인기", "추천", "코드", "글"];
 
 export function AddLinkDialog({ onAddLink, trigger }: AddLinkDialogProps) {
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // React Hook Form 초기화 (Zod Resolver 연결 및 실시간 유효성 검증 mode: "onChange")
   const {
@@ -151,20 +152,29 @@ export function AddLinkDialog({ onAddLink, trigger }: AddLinkDialogProps) {
     }
   };
 
-  // 폼 제출 처리
-  const onSubmit = (data: AddLinkFormValues) => {
-    onAddLink({
-      title: data.title.trim(),
-      url: data.url.trim(),
-      subtitle: data.subtitle?.trim() || undefined,
-      category: data.category,
-      badge: data.badge?.trim() || undefined,
-      iconType: data.iconType || "custom",
-    });
+  // 폼 제출 처리 (Firestore 비동기 저장 처리)
+  const onSubmit = async (data: AddLinkFormValues) => {
+    try {
+      setIsSubmitting(true);
+      await onAddLink({
+        title: data.title.trim(),
+        url: data.url.trim(),
+        subtitle: data.subtitle?.trim() || undefined,
+        category: data.category,
+        badge: data.badge?.trim() || undefined,
+        iconType: data.iconType || "custom",
+      });
 
-    reset();
-    setOpen(false);
+      reset();
+      setOpen(false);
+    } catch (err) {
+      console.error("링크 추가 오류:", err);
+      // 실패 시 모달을 닫지 않고 유지
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const isUrlWithoutProtocol =
     currentUrl.trim() &&
@@ -386,6 +396,7 @@ export function AddLinkDialog({ onAddLink, trigger }: AddLinkDialogProps) {
               type="button"
               variant="secondary"
               size="md"
+              disabled={isSubmitting}
               onClick={() => {
                 reset();
                 setOpen(false);
@@ -398,11 +409,13 @@ export function AddLinkDialog({ onAddLink, trigger }: AddLinkDialogProps) {
               type="submit"
               variant="primary"
               size="md"
+              disabled={isSubmitting}
               className="w-full sm:w-auto"
             >
-              추가하기
+              {isSubmitting ? "저장 중..." : "추가하기"}
             </Button>
           </DialogFooter>
+
         </form>
       </DialogContent>
     </Dialog>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserLinkPage, LinkCategoryType } from "@/types/link";
+
+import { UserLinkPage, LinkCategoryType, LinkItem } from "@/types/link";
 import {
   DEFAULT_PROFILE,
   getStoredProfile,
@@ -9,22 +10,53 @@ import {
   getStoredHasLiked,
   setStoredHasLiked,
 } from "@/lib/storage";
+import {
+  addLinkToFirestore,
+  subscribeFirestoreLinks,
+  sortByCreatedAtDesc,
+  AddLinkInput,
+} from "@/lib/firestore";
 
 export function useProfile() {
   const [profile, setProfile] = useState<UserLinkPage>(DEFAULT_PROFILE);
   const [isMounted, setIsMounted] = useState(false);
+  const [isLoadingLinks, setIsLoadingLinks] = useState(true);
   const [hasLiked, setHasLiked] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<LinkCategoryType>("all");
 
-  // SSR 하이드레이션 후 로컬스토리지 데이터 로드
+  // SSR 하이드레이션 후 로컬스토리지 데이터 로드 및 Firestore users/anonymous/links 실시간 구독
   useEffect(() => {
     setIsMounted(true);
     const stored = getStoredProfile();
     const storedLike = getStoredHasLiked();
     setProfile(stored);
     setHasLiked(storedLike);
+
+    // Firestore users/anonymous/links 실시간 동기화 (최초 로드 시에도 즉시 links 불러옴)
+    const unsubscribe = subscribeFirestoreLinks(
+      (firestoreLinks) => {
+        setProfile((prev) => {
+          const updated = {
+            ...prev,
+            links: firestoreLinks,
+          };
+          saveStoredProfile(updated);
+          return updated;
+        });
+        setIsLoadingLinks(false);
+      },
+      (err) => {
+        console.error("Firestore links subscription error:", err);
+        setIsLoadingLinks(false);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
+
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -131,59 +163,50 @@ export function useProfile() {
     }
   }, []);
 
-  // 링크 추가
-  const handleAddLink = useCallback((data: {
-    title: string;
-    url: string;
-    subtitle?: string;
-    category?: "project" | "blog" | "social" | "contact";
-    badge?: string;
-    badgeColor?: string;
-    iconType?: string;
-  }) => {
-    let formattedUrl = data.url.trim();
-    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://") && !formattedUrl.startsWith("mailto:")) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
+  // 링크 추가 (Firestore users/anonymous/links에 저장)
+  const handleAddLink = useCallback(
+    async (data: {
+      title: string;
+      url: string;
+      subtitle?: string;
+      category?: "project" | "blog" | "social" | "contact";
+      badge?: string;
+      badgeColor?: string;
+      iconType?: string;
+    }) => {
+      try {
+        // Firestore의 users/anonymous/links 경로에 저장
+        const newLink = await addLinkToFirestore(data);
 
-    const newLink = {
-      id: `link-${Date.now()}`,
-      title: data.title.trim(),
-      subtitle: data.subtitle?.trim() || undefined,
-      url: formattedUrl,
-      category: data.category || "project",
-      badge: data.badge?.trim() || undefined,
-      badgeColor: data.badgeColor || (data.badge === "신규" ? "#00B460" : data.badge === "대표" ? "#3182F6" : "#333D4B"),
-      iconType: data.iconType || "custom",
-      isPinned: false,
-      isActive: true,
-      order: 0, // 최상단에 배치
-      clicks: 0,
-      clickCount: 0,
-      createdAt: new Date().toISOString(),
-    };
+        // 로컬 상태 즉시 반영 (실시간 리스너가 반영하기 전 빠른 UI 반응 - 최신순 정렬)
+        setProfile((prev) => {
+          const exists = prev.links.some((l) => l.id === newLink.id);
+          if (exists) return prev;
 
-    setProfile((prev) => {
-      // 기존 링크들의 order를 1씩 밀어내고 맨 앞에 추가
-      const reorderedLinks = prev.links.map((link) => ({
-        ...link,
-        order: link.order + 1,
-      }));
-      const updatedLinks = [newLink, ...reorderedLinks];
-      const updated = {
-        ...prev,
-        links: updatedLinks,
-      };
-      saveStoredProfile(updated);
-      return updated;
-    });
+          const updatedLinks = [newLink, ...prev.links].sort(sortByCreatedAtDesc);
+          const updated = {
+            ...prev,
+            links: updatedLinks,
+          };
+          saveStoredProfile(updated);
+          return updated;
+        });
 
-    showToast("새 링크가 추가되었어요");
-  }, [showToast]);
+        showToast("새 링크가 추가되었어요");
+        return newLink;
+      } catch (error) {
+        console.error("Firestore 링크 추가 실패:", error);
+        showToast("링크 추가 중 오류가 발생했어요. 다시 시도해 주세요.");
+        throw error;
+      }
+    },
+    [showToast]
+  );
 
   return {
     profile,
     isMounted,
+    isLoadingLinks,
     hasLiked,
     toastMessage,
     selectedCategory,
