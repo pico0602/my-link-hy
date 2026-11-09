@@ -14,23 +14,34 @@ import {
 import { db } from "@/lib/firebase";
 import { LinkItem } from "@/types/link";
 
-// Firestore 경로: users/anonymous/links
+// Firestore 기본 컬렉션 상수
 export const USERS_COLLECTION = "users";
 export const ANONYMOUS_DOC_ID = "anonymous";
 export const LINKS_SUBCOLLECTION = "links";
 
 /**
- * users/anonymous/links 컬렉션 레퍼런스를 반환합니다.
+ * users/{userId}/links 컬렉션 레퍼런스를 반환합니다.
  */
-export function getAnonymousLinksCollection() {
-  return collection(db, USERS_COLLECTION, ANONYMOUS_DOC_ID, LINKS_SUBCOLLECTION);
+export function getUserLinksCollection(userId: string = ANONYMOUS_DOC_ID) {
+  return collection(db, USERS_COLLECTION, userId, LINKS_SUBCOLLECTION);
 }
 
 /**
- * users/anonymous/links/{id} 문서 레퍼런스를 반환합니다.
+ * users/{userId}/links/{id} 문서 레퍼런스를 반환합니다.
  */
+export function getUserLinkDoc(userId: string = ANONYMOUS_DOC_ID, id: string) {
+  return doc(db, USERS_COLLECTION, userId, LINKS_SUBCOLLECTION, id);
+}
+
+/**
+ * 익명 사용자용 호환 함수 (users/anonymous/links)
+ */
+export function getAnonymousLinksCollection() {
+  return getUserLinksCollection(ANONYMOUS_DOC_ID);
+}
+
 export function getAnonymousLinkDoc(id: string) {
-  return doc(db, USERS_COLLECTION, ANONYMOUS_DOC_ID, LINKS_SUBCOLLECTION, id);
+  return getUserLinkDoc(ANONYMOUS_DOC_ID, id);
 }
 
 export interface AddLinkInput {
@@ -62,10 +73,13 @@ export function formatUrl(url: string): string {
 }
 
 /**
- * 새 링크를 Firestore의 `users/anonymous/links`에 저장합니다.
+ * 새 링크를 Firestore의 `users/{userId}/links`에 저장합니다.
  */
-export async function addLinkToFirestore(data: AddLinkInput): Promise<LinkItem> {
-  const linksCol = getAnonymousLinksCollection();
+export async function addLinkToFirestore(
+  userId: string,
+  data: AddLinkInput
+): Promise<LinkItem> {
+  const linksCol = getUserLinksCollection(userId);
   const formattedUrl = formatUrl(data.url);
 
   // Firestore는 undefined 필드를 허용하지 않으므로 값 정제
@@ -106,13 +120,14 @@ export async function addLinkToFirestore(data: AddLinkInput): Promise<LinkItem> 
 }
 
 /**
- * Firestore의 `users/anonymous/links/{id}` 문서를 수정합니다.
+ * Firestore의 `users/{userId}/links/{id}` 문서를 수정합니다.
  */
 export async function updateLinkInFirestore(
+  userId: string,
   id: string,
   data: UpdateLinkInput
 ): Promise<void> {
-  const docRef = getAnonymousLinkDoc(id);
+  const docRef = getUserLinkDoc(userId, id);
   const updateData: Record<string, any> = {};
 
   if (data.title !== undefined) {
@@ -154,10 +169,13 @@ export async function updateLinkInFirestore(
 }
 
 /**
- * Firestore의 `users/anonymous/links/{id}` 문서를 삭제합니다.
+ * Firestore의 `users/{userId}/links/{id}` 문서를 삭제합니다.
  */
-export async function deleteLinkFromFirestore(id: string): Promise<void> {
-  const docRef = getAnonymousLinkDoc(id);
+export async function deleteLinkFromFirestore(
+  userId: string,
+  id: string
+): Promise<void> {
+  const docRef = getUserLinkDoc(userId, id);
   await deleteDoc(docRef);
 }
 
@@ -223,11 +241,13 @@ export function sortByCreatedAtDesc(a: LinkItem, b: LinkItem): number {
 }
 
 /**
- * Firestore의 `users/anonymous/links`에서 링크 목록을 1회 조회합니다.
+ * Firestore의 `users/{userId}/links`에서 링크 목록을 1회 조회합니다.
  * createdAt 기준 최신순 정렬
  */
-export async function getLinksFromFirestore(): Promise<LinkItem[]> {
-  const linksCol = getAnonymousLinksCollection();
+export async function getLinksFromFirestore(
+  userId: string = ANONYMOUS_DOC_ID
+): Promise<LinkItem[]> {
+  const linksCol = getUserLinksCollection(userId);
   try {
     const q = query(linksCol, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
@@ -243,14 +263,15 @@ export async function getLinksFromFirestore(): Promise<LinkItem[]> {
 }
 
 /**
- * Firestore의 `users/anonymous/links` 실시간 리스너를 구독합니다.
+ * Firestore의 `users/{userId}/links` 실시간 리스너를 구독합니다.
  * 새 링크 추가 시 또는 데이터 변경 시 createdAt 최신순으로 자동 갱신됩니다.
  */
 export function subscribeFirestoreLinks(
+  userId: string = ANONYMOUS_DOC_ID,
   onUpdate: (links: LinkItem[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const linksCol = getAnonymousLinksCollection();
+  const linksCol = getUserLinksCollection(userId);
   let unsubFallback: Unsubscribe | null = null;
 
   try {

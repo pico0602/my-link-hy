@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, Analytics } from "firebase/analytics";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
 
 // Firebase 설정 정보 (Next.js 환경 변수 활용)
 export const firebaseConfig = {
@@ -19,6 +20,15 @@ export const app: FirebaseApp =
 
 // Cloud Firestore 인스턴스 초기화
 export const db: Firestore = getFirestore(app);
+
+// Firebase Authentication 인스턴스 초기화
+export const auth: Auth = getAuth(app);
+
+// Google Auth Provider 설정 (매번 계정 선택 창이 뜨도록 설정)
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
 
 // Firebase Analytics는 브라우저(클라이언트) 환경에서만 초기화
 let analytics: Analytics | null = null;

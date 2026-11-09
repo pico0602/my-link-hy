@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { UserLinkPage, LinkCategoryType, LinkItem } from "@/types/link";
 import {
   DEFAULT_PROFILE,
@@ -20,8 +19,10 @@ import {
   UpdateLinkInput,
   formatUrl,
 } from "@/lib/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function useProfile() {
+  const { user, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<UserLinkPage>(DEFAULT_PROFILE);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoadingLinks, setIsLoadingLinks] = useState(true);
@@ -29,38 +30,9 @@ export function useProfile() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<LinkCategoryType>("all");
 
-  // SSR 하이드레이션 후 로컬스토리지 데이터 로드 및 Firestore users/anonymous/links 실시간 구독
-  useEffect(() => {
-    setIsMounted(true);
-    const stored = getStoredProfile();
-    const storedLike = getStoredHasLiked();
-    setProfile(stored);
-    setHasLiked(storedLike);
-
-    // Firestore users/anonymous/links 실시간 동기화 (최초 로드 시에도 즉시 links 불러옴)
-    const unsubscribe = subscribeFirestoreLinks(
-      (firestoreLinks) => {
-        setProfile((prev) => {
-          const updated = {
-            ...prev,
-            links: firestoreLinks,
-          };
-          saveStoredProfile(updated);
-          return updated;
-        });
-        setIsLoadingLinks(false);
-      },
-      (err) => {
-        console.error("Firestore links subscription error:", err);
-        setIsLoadingLinks(false);
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
+  const currentFirestorePath = useMemo(() => {
+    return user ? `users/${user.uid}/links` : null;
+  }, [user]);
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -69,6 +41,64 @@ export function useProfile() {
     }, 2400);
     return () => clearTimeout(timer);
   }, []);
+
+  // SSR 하이드레이션 후 로컬스토리지 좋아요 상태 복원
+  useEffect(() => {
+    setIsMounted(true);
+    const storedLike = getStoredHasLiked();
+    setHasLiked(storedLike);
+  }, []);
+
+  // 사용자 로그인 상태에 따른 Firestore users/{user.uid}/links 실시간 구독 및 프로필 동기화
+  useEffect(() => {
+    if (!isMounted) return;
+
+    if (user) {
+      setIsLoadingLinks(true);
+
+      // 로그인된 사용자 프로필 정보 동기화
+      setProfile((prev) => ({
+        ...prev,
+        displayName: user.displayName || prev.displayName,
+        email: user.email || prev.email,
+        avatarUrl: user.photoURL || prev.avatarUrl,
+      }));
+
+      // Firestore의 `users/${user.uid}/links` 경로 실시간 동기화
+      const unsubscribe = subscribeFirestoreLinks(
+        user.uid,
+        (firestoreLinks) => {
+          setProfile((prev) => {
+            const updated = {
+              ...prev,
+              links: firestoreLinks,
+            };
+            saveStoredProfile(updated);
+            return updated;
+          });
+          setIsLoadingLinks(false);
+        },
+        (err) => {
+          console.error("Firestore links subscription error:", err);
+          setIsLoadingLinks(false);
+        }
+      );
+
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      // 로그아웃 상태일 때
+      setProfile((prev) => ({
+        ...prev,
+        displayName: DEFAULT_PROFILE.displayName,
+        email: DEFAULT_PROFILE.email,
+        avatarUrl: DEFAULT_PROFILE.avatarUrl,
+        links: [],
+      }));
+      setIsLoadingLinks(false);
+    }
+  }, [isMounted, user]);
 
   // 이메일 복사
   const handleCopyEmail = useCallback(() => {
@@ -155,7 +185,7 @@ export function useProfile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ linkId }),
       }).catch(() => {
-        // 오프라인이거나 개발 모드일 때 무시
+        // ignore
       });
     } catch {
       // ignore
@@ -167,7 +197,7 @@ export function useProfile() {
     }
   }, []);
 
-  // 링크 추가 (Firestore users/anonymous/links에 저장)
+  // 링크 추가 (Firestore users/{user.uid}/links에 저장)
   const handleAddLink = useCallback(
     async (data: {
       title: string;
@@ -178,9 +208,14 @@ export function useProfile() {
       badgeColor?: string;
       iconType?: string;
     }) => {
+      if (!user) {
+        showToast("링크를 추가하려면 먼저 로그인해 주세요.");
+        return;
+      }
+
       try {
-        // Firestore의 users/anonymous/links 경로에 저장
-        const newLink = await addLinkToFirestore(data);
+        // Firestore의 users/{user.uid}/links 경로에 저장
+        const newLink = await addLinkToFirestore(user.uid, data);
 
         // 로컬 상태 즉시 반영 (실시간 리스너가 반영하기 전 빠른 UI 반응 - 최신순 정렬)
         setProfile((prev) => {
@@ -204,14 +239,19 @@ export function useProfile() {
         throw error;
       }
     },
-    [showToast]
+    [user, showToast]
   );
 
-  // 링크 수정 (Firestore users/anonymous/links/{id} 문서 업데이트)
+  // 링크 수정 (Firestore users/{user.uid}/links/{id} 문서 업데이트)
   const handleUpdateLink = useCallback(
     async (id: string, data: UpdateLinkInput) => {
+      if (!user) {
+        showToast("링크를 수정하려면 먼저 로그인해 주세요.");
+        return;
+      }
+
       try {
-        await updateLinkInFirestore(id, data);
+        await updateLinkInFirestore(user.uid, id, data);
 
         // 로컬 상태 즉시 반영 (실시간 리스너 동기화 전 빠른 반응)
         setProfile((prev) => {
@@ -244,14 +284,19 @@ export function useProfile() {
         throw error;
       }
     },
-    [showToast]
+    [user, showToast]
   );
 
-  // 링크 삭제 (Firestore users/anonymous/links/{id} 문서 삭제)
+  // 링크 삭제 (Firestore users/{user.uid}/links/{id} 문서 삭제)
   const handleDeleteLink = useCallback(
     async (id: string) => {
+      if (!user) {
+        showToast("링크를 삭제하려면 먼저 로그인해 주세요.");
+        return;
+      }
+
       try {
-        await deleteLinkFromFirestore(id);
+        await deleteLinkFromFirestore(user.uid, id);
 
         // 로컬 상태 즉시 반영
         setProfile((prev) => {
@@ -268,16 +313,19 @@ export function useProfile() {
         throw error;
       }
     },
-    [showToast]
+    [user, showToast]
   );
 
   return {
+    user,
+    authLoading,
     profile,
     isMounted,
     isLoadingLinks,
     hasLiked,
     toastMessage,
     selectedCategory,
+    currentFirestorePath,
     setSelectedCategory,
     showToast,
     handleCopyEmail,
