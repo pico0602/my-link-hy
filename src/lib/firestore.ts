@@ -531,13 +531,32 @@ export async function saveUserProfileToFirestore(
   }
 
   const now = new Date().toISOString();
+
+  // Firestore는 undefined 필드를 허용하지 않으므로 값 정제
+  const profileDocData: Record<string, any> = {
+    username: trimmedUsername,
+    displayName: trimmedDisplayName,
+    bio: trimmedBio,
+    updatedAt: now,
+  };
+
+  if (data.email && data.email.trim().length > 0) {
+    profileDocData.email = data.email.trim();
+  }
+  if (data.avatarUrl && data.avatarUrl.trim().length > 0) {
+    profileDocData.avatarUrl = data.avatarUrl.trim();
+  }
+  if (data.badge && data.badge.trim().length > 0) {
+    profileDocData.badge = data.badge.trim();
+  }
+
   const profileData: UserProfileData = {
     username: trimmedUsername,
     displayName: trimmedDisplayName,
     bio: trimmedBio,
-    email: data.email,
-    avatarUrl: data.avatarUrl,
-    badge: data.badge,
+    email: profileDocData.email,
+    avatarUrl: profileDocData.avatarUrl,
+    badge: profileDocData.badge,
     updatedAt: now,
   };
 
@@ -550,7 +569,7 @@ export async function saveUserProfileToFirestore(
     await setDoc(
       profileDocRef,
       {
-        ...profileData,
+        ...profileDocData,
         createdAt: now,
       },
       { merge: true }
@@ -567,13 +586,8 @@ export async function saveUserProfileToFirestore(
     await setDoc(
       userDocRef,
       {
-        username: trimmedUsername,
-        displayName: trimmedDisplayName,
-        bio: trimmedBio,
-        profile: profileData,
-        email: data.email,
-        avatarUrl: data.avatarUrl,
-        updatedAt: now,
+        ...profileDocData,
+        profile: profileDocData,
       },
       { merge: true }
     );
