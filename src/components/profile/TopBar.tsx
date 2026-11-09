@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Share2, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Share2, Loader2, Globe, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
@@ -9,6 +10,8 @@ import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
 interface TopBarProps {
   onShare: () => void;
   username?: string;
+  displayName?: string;
+  userPageHref?: string;
   onLoginSuccess?: (userName: string) => void;
   onLogoutSuccess?: () => void;
   onCopyUid?: () => void;
@@ -18,6 +21,8 @@ interface TopBarProps {
 export function TopBar({
   onShare,
   username,
+  displayName,
+  userPageHref,
   onLoginSuccess,
   onLogoutSuccess,
   onCopyUid,
@@ -25,6 +30,16 @@ export function TopBar({
 }: TopBarProps) {
   const { user, loading, signInWithGoogle, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const targetHref =
+    userPageHref ||
+    (displayName
+      ? `/${encodeURIComponent(displayName)}`
+      : username
+      ? `/${encodeURIComponent(username)}`
+      : user?.displayName
+      ? `/${encodeURIComponent(user.displayName)}`
+      : null);
 
   const handleLogin = async () => {
     try {
@@ -52,9 +67,9 @@ export function TopBar({
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-white/80 px-4 sm:px-5 backdrop-blur-md border-b border-[#E5E8EB]">
+    <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-white/80 px-3 sm:px-5 backdrop-blur-md border-b border-[#E5E8EB]">
       {/* 브랜드 로고 */}
-      <div className="flex items-center gap-2 shrink-0">
+      <Link href="/" className="flex items-center gap-2 shrink-0">
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3182F6] text-white shadow-xs">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
@@ -63,21 +78,38 @@ export function TopBar({
         <span className="text-[16px] sm:text-[17px] font-bold tracking-tight text-[#191F28]">
           마이링크
         </span>
-      </div>
+      </Link>
 
       {/* 우측 인증 및 액션 영역 */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {loading ? (
           <div className="h-8 w-24 animate-pulse rounded-xl bg-[#F2F4F6]" />
         ) : user ? (
-          /* 로그인 상태: 사용자 프로필 드롭다운 메뉴 */
-          <ProfileDropdown
-            user={user}
-            username={username}
-            onLogout={handleLogout}
-            onCopyUid={onCopyUid}
-            onEditProfile={onEditProfile}
-          />
+          <>
+            {/* 1번: 프로필 아바타 바로 옆 내 페이지 바로가기 버튼 (반응형: 모바일 아이콘 캡슐 / 데스크톱 라벨) */}
+            {targetHref && (
+              <Link
+                href={targetHref}
+                className="inline-flex h-8 items-center justify-center rounded-full bg-[#E8F3FF] px-2 sm:px-2.5 text-[12px] sm:text-[13px] font-semibold text-[#3182F6] hover:bg-[#DBECFF] active:scale-95 transition-all shrink-0 border border-[#D4E8FF]/60"
+                title="내 공개 페이지 바로가기"
+                aria-label="내 공개 페이지 바로가기"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#3182F6] shrink-0" />
+                <span className="hidden sm:inline ml-1 font-semibold">내 페이지</span>
+                <ExternalLink className="w-3 h-3 text-[#3182F6] opacity-70 hidden sm:inline ml-0.5" />
+              </Link>
+            )}
+
+            {/* 사용자 프로필 드롭다운 메뉴 (아바타) */}
+            <ProfileDropdown
+              user={user}
+              username={username}
+              userPageHref={targetHref || undefined}
+              onLogout={handleLogout}
+              onCopyUid={onCopyUid}
+              onEditProfile={onEditProfile}
+            />
+          </>
         ) : (
           /* 로그아웃 상태: "Google로 로그인" 버튼 (클릭 시 구글 팝업) */
           <Button
@@ -119,7 +151,7 @@ export function TopBar({
           variant="ghost"
           size="sm"
           onClick={onShare}
-          className="h-8 rounded-full px-2.5 sm:px-3 font-semibold text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#191F28]"
+          className="h-8 rounded-full px-2 sm:px-2.5 font-semibold text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#191F28]"
           aria-label="프로필 주소 공유"
         >
           <Share2 className="w-3.5 h-3.5 text-[#4E5968] sm:mr-1" />

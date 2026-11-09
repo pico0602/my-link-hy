@@ -1,14 +1,16 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { User } from "firebase/auth";
-import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck, UserCog } from "lucide-react";
+import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck, UserCog, Globe, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 interface ProfileDropdownProps {
   user: User;
   username?: string;
+  userPageHref?: string;
   onLogout: () => Promise<void>;
   onCopyUid?: () => void;
   onEditProfile?: () => void;
@@ -17,6 +19,7 @@ interface ProfileDropdownProps {
 export function ProfileDropdown({
   user,
   username,
+  userPageHref,
   onLogout,
   onCopyUid,
   onEditProfile,
@@ -184,6 +187,19 @@ export function ProfileDropdown({
             </p>
           </div>
 
+          {/* 내 공개 페이지 바로가기 (드롭다운 내 링크) */}
+          {userPageHref && (
+            <Link
+              href={userPageHref}
+              onClick={() => setIsOpen(false)}
+              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl py-2 px-3 text-[13px] font-semibold text-[#3182F6] bg-[#E8F3FF] hover:bg-[#D4E8FF] active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <Globe className="w-4 h-4 text-[#3182F6]" />
+              <span>내 공개 페이지 보기</span>
+              <ExternalLink className="w-3.5 h-3.5 text-[#3182F6] opacity-70" />
+            </Link>
+          )}
+
           {/* 프로필 수정 액션 버튼 */}
           {onEditProfile && (
             <button
@@ -192,9 +208,9 @@ export function ProfileDropdown({
                 setIsOpen(false);
                 onEditProfile();
               }}
-              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl py-2 px-3 text-[13px] font-semibold text-[#3182F6] bg-[#E8F3FF] hover:bg-[#D4E8FF] active:scale-[0.98] transition-all cursor-pointer"
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2 px-3 text-[13px] font-semibold text-[#4E5968] bg-[#F2F4F6] hover:bg-[#E5E8EB] active:scale-[0.98] transition-all cursor-pointer"
             >
-              <UserCog className="w-4 h-4 text-[#3182F6]" />
+              <UserCog className="w-4 h-4 text-[#6B7684]" />
               <span>프로필 정보 수정</span>
             </button>
           )}

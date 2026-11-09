@@ -59,6 +59,7 @@ export default function HomePage() {
       {/* 1. TopBar (56px, Sticky) - Google 로그인/로그아웃 및 사용자 프로필 드롭다운 */}
       <TopBar
         username={profile.username}
+        displayName={profile.displayName}
         onShare={handleShare}
         onLoginSuccess={(userName) => {
           showToast(`${userName}님, 환영합니다!`);
