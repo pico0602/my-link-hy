@@ -279,6 +279,12 @@ export function subscribeFirestoreLinks(
   onUpdate: (links: LinkItem[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  // 익명 사용자이거나 빈 userId인 경우 불필요한 Firestore 요청 방지 (권한 오류 방지)
+  if (!userId || userId.trim() === "" || userId === ANONYMOUS_DOC_ID) {
+    onUpdate([]);
+    return () => {};
+  }
+
   const linksCol = getUserLinksCollection(userId);
   let unsubFallback: Unsubscribe | null = null;
 
@@ -293,6 +299,20 @@ export function subscribeFirestoreLinks(
         onUpdate(links);
       },
       (error) => {
+        const isPermission =
+          (error as any)?.code === "permission-denied" ||
+          error?.message?.includes("permissions") ||
+          error?.message?.includes("Missing or insufficient permissions");
+
+        if (isPermission) {
+          console.warn(
+            "Firestore 보안 규칙 권한 제한: users/{userId}/links 읽기 권한을 확인해주세요. (Firebase Console 규칙 설정 필요)",
+            error
+          );
+          if (onError) onError(error);
+          return;
+        }
+
         console.warn(
           "Firestore onSnapshot with orderBy failed, fallback to in-memory sorted listener:",
           error
@@ -453,6 +473,10 @@ export function generateDefaultUsername(email?: string | null): string {
 export async function getUserProfileFromFirestore(
   userId: string
 ): Promise<UserProfileData | null> {
+  if (!userId || userId.trim() === "" || userId === ANONYMOUS_DOC_ID) {
+    return null;
+  }
+
   try {
     // 1. users/{userId}/profile/profile 확인
     const profileDocRef = getUserProfileDoc(userId);

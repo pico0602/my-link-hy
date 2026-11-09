@@ -35,6 +35,7 @@ import {
   getUserProfileFromFirestore,
   UserProfileData,
 } from "@/lib/firestore";
+import { getStoredProfile } from "@/lib/storage";
 import { TopBar } from "@/components/profile/TopBar";
 import {
   Card,
@@ -103,6 +104,7 @@ export default function StatsPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
 
   // 1. 비로그인 시 즉시 메인 페이지로 리다이렉트
   useEffect(() => {
@@ -123,14 +125,34 @@ export default function StatsPage() {
         if (data) setProfile(data);
       })
       .catch((err) => {
-        console.error("통계 페이지 프로필 조회 에러:", err);
+        console.warn("통계 페이지 프로필 조회 에러:", err);
       });
 
     // users/{user.uid}/links 컬렉션 실시간 구독
-    const unsubscribe = subscribeFirestoreLinks(user.uid, (firestoreLinks) => {
-      setLinks(firestoreLinks);
-      setIsLoadingData(false);
-    });
+    const unsubscribe = subscribeFirestoreLinks(
+      user.uid,
+      (firestoreLinks) => {
+        setLinks(firestoreLinks);
+        setIsLoadingData(false);
+        setPermissionError(false);
+      },
+      (err) => {
+        console.warn("통계 페이지 links 구독 권한/네트워크 오류:", err);
+        setIsLoadingData(false);
+        const isPermission =
+          (err as any)?.code === "permission-denied" ||
+          err?.message?.includes("permissions") ||
+          err?.message?.includes("Missing or insufficient permissions");
+        if (isPermission) {
+          setPermissionError(true);
+        }
+        // 로컬스토리지에 저장된 링크 정보로 안전하게 폴백 복원
+        const stored = getStoredProfile();
+        if (stored?.links && stored.links.length > 0) {
+          setLinks(stored.links);
+        }
+      }
+    );
 
     return () => {
       unsubscribe();
@@ -285,6 +307,23 @@ export default function StatsPage() {
             마이링크 &gt; 통계 대시보드
           </span>
         </div>
+        {/* Firebase 권한 안내 배너 (Missing or insufficient permissions 발생 시 노출) */}
+        {permissionError && (
+          <div className="flex flex-col gap-2 p-4 rounded-2xl bg-[#FFF8E6] border border-[#FEE3A2] text-[#805B10]">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-[#F59E0B] shrink-0" />
+              <span className="text-[14px] font-bold">
+                Firebase Firestore 보안 규칙(Rules) 권한 설정이 필요합니다
+              </span>
+            </div>
+            <p className="text-[12px] leading-relaxed text-[#92400E]">
+              Firebase 콘솔의 Firestore Rules가 읽기/쓰기를 제한하고 있어 실시간 동기화가 차단되었습니다. (현재는 로컬 캐시 데이터로 표시 중)
+              <br />
+              프로젝트 루트의 <strong>firestore.rules</strong> 파일 내용을 Firebase Console &gt; Cloud Firestore &gt; 규칙(Rules)에 배포해주세요.
+            </p>
+          </div>
+        )}
+
         {/* 상단 프로필 환영 배너 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-5 rounded-3xl bg-white border border-[#E5E8EB]/70 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
           <div>
