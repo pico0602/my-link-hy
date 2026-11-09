@@ -33,7 +33,7 @@ export default function HomePage() {
 
   return (
     <div className="relative min-h-screen w-full bg-[#F2F4F6] text-[#191F28] pb-32">
-      {/* 1. TopBar (56px, Sticky) - Google 로그인/로그아웃 및 사용자 이름 표시 */}
+      {/* 1. TopBar (56px, Sticky) - Google 로그인/로그아웃 및 사용자 프로필 드롭다운 */}
       <TopBar
         onShare={handleShare}
         onLoginSuccess={(userName) => {
@@ -41,6 +41,9 @@ export default function HomePage() {
         }}
         onLogoutSuccess={() => {
           showToast("로그아웃되었어요");
+        }}
+        onCopyUid={() => {
+          showToast("고유 식별자(UID)가 복사되었어요");
         }}
       />
 

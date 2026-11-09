@@ -1,18 +1,24 @@
 "use client";
 
 import React, { useState } from "react";
-import { Share2, LogOut, Loader2 } from "lucide-react";
+import { Share2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
 
 interface TopBarProps {
   onShare: () => void;
   onLoginSuccess?: (userName: string) => void;
   onLogoutSuccess?: () => void;
+  onCopyUid?: () => void;
 }
 
-export function TopBar({ onShare, onLoginSuccess, onLogoutSuccess }: TopBarProps) {
+export function TopBar({
+  onShare,
+  onLoginSuccess,
+  onLogoutSuccess,
+  onCopyUid,
+}: TopBarProps) {
   const { user, loading, signInWithGoogle, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,27 +38,14 @@ export function TopBar({ onShare, onLoginSuccess, onLogoutSuccess }: TopBarProps
 
   const handleLogout = async () => {
     try {
-      setIsSubmitting(true);
       await logout();
       if (onLogoutSuccess) {
         onLogoutSuccess();
       }
     } catch (error) {
       console.error("로그아웃 중 에러:", error);
-    } finally {
-      setIsSubmitting(false);
     }
   };
-
-  // 사용자 이니셜 추출
-  const getInitials = (name?: string | null) => {
-    if (!name) return "U";
-    return name.slice(0, 2).toUpperCase();
-  };
-
-  const displayName =
-    user?.displayName ||
-    (user?.email ? user.email.split("@")[0] : "사용자");
 
   return (
     <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-white/80 px-4 sm:px-5 backdrop-blur-md border-b border-[#E5E8EB]">
@@ -73,38 +66,12 @@ export function TopBar({ onShare, onLoginSuccess, onLogoutSuccess }: TopBarProps
         {loading ? (
           <div className="h-8 w-24 animate-pulse rounded-xl bg-[#F2F4F6]" />
         ) : user ? (
-          /* 로그인 상태: 사용자 이름 표시 + "로그아웃" 버튼 */
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-1.5 rounded-full bg-[#F2F4F6] py-1 pl-1 pr-2.5 sm:pr-3">
-              <Avatar size="sm" className="h-6 w-6 border border-white">
-                {user.photoURL && (
-                  <AvatarImage src={user.photoURL} alt={displayName} />
-                )}
-                <AvatarFallback className="text-[10px]">
-                  {getInitials(displayName)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="max-w-[70px] sm:max-w-[110px] truncate text-[12px] sm:text-[13px] font-semibold text-[#191F28]">
-                {displayName}
-              </span>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isSubmitting}
-              onClick={handleLogout}
-              className="h-8 rounded-lg px-2 sm:px-2.5 text-[12px] sm:text-[13px] font-medium text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#F04452]"
-              aria-label="로그아웃"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <LogOut className="w-3.5 h-3.5 sm:mr-1" />
-              )}
-              <span className="hidden sm:inline">로그아웃</span>
-            </Button>
-          </div>
+          /* 로그인 상태: 사용자 프로필 드롭다운 메뉴 */
+          <ProfileDropdown
+            user={user}
+            onLogout={handleLogout}
+            onCopyUid={onCopyUid}
+          />
         ) : (
           /* 로그아웃 상태: "Google로 로그인" 버튼 (클릭 시 구글 팝업) */
           <Button
