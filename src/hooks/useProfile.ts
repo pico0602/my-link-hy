@@ -18,6 +18,7 @@ import {
   saveUserProfileToFirestore,
   ensureUserProfileInitialized,
   checkUsernameAvailable,
+  recordLinkClick,
   AddLinkInput,
   UpdateLinkInput,
   formatUrl,
@@ -183,41 +184,12 @@ export function useProfile() {
   }, [hasLiked, showToast]);
 
   // 링크 클릭 트래킹 및 이동
-  const handleLinkClick = useCallback((linkId: string, url: string) => {
-    // 1. 상태 및 로컬 스토리지 클릭수 증가
-    setProfile((prev) => {
-      const nextLinks = prev.links.map((link) => {
-        if (link.id === linkId) {
-          const currentCount = link.clicks ?? link.clickCount ?? 0;
-          return {
-            ...link,
-            clicks: currentCount + 1,
-            clickCount: currentCount + 1,
-          };
-        }
-        return link;
-      });
+  const handleLinkClick = useCallback((linkId: string, url?: string) => {
+    // 프로필 관리 페이지(/)에서는 본인의 확인/편집 목적 클릭이므로 통계 객관성을 위해 조회수를 증가시키지 않습니다.
+    console.info("[통계 제외] 프로필 소유자 확인용 클릭입니다. (조회수 미증가)", { linkId });
 
-      const updated = { ...prev, links: nextLinks };
-      saveStoredProfile(updated);
-      return updated;
-    });
-
-    // 2. Mock API 백엔드 트래킹 비동기 전송
-    try {
-      fetch("/api/links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ linkId }),
-      }).catch(() => {
-        // ignore
-      });
-    } catch {
-      // ignore
-    }
-
-    // 3. 외부 링크 새 탭 오픈
-    if (typeof window !== "undefined") {
+    // 링크는 새 탭으로 열림 (target='_blank') fallback
+    if (url && typeof window !== "undefined") {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   }, []);

@@ -2,13 +2,22 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Share2, Loader2, Globe, ExternalLink } from "lucide-react";
+import { usePathname } from "next/navigation";
+import {
+  Share2,
+  Loader2,
+  Globe,
+  ExternalLink,
+  BarChart2,
+  Link2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
+import { cn } from "@/lib/utils";
 
 interface TopBarProps {
-  onShare: () => void;
+  onShare?: () => void;
   username?: string;
   displayName?: string;
   userPageHref?: string;
@@ -28,6 +37,7 @@ export function TopBar({
   onCopyUid,
   onEditProfile,
 }: TopBarProps) {
+  const pathname = usePathname();
   const { user, loading, signInWithGoogle, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,27 +76,69 @@ export function TopBar({
     }
   };
 
+  const handleShareClick = () => {
+    if (onShare) {
+      onShare();
+    } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+      alert("링크가 클립보드에 복사되었습니다!");
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-white/80 px-3 sm:px-5 backdrop-blur-md border-b border-[#E5E8EB]">
-      {/* 브랜드 로고 */}
-      <Link href="/" className="flex items-center gap-2 shrink-0">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3182F6] text-white shadow-xs">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-          </svg>
-        </div>
-        <span className="text-[16px] sm:text-[17px] font-bold tracking-tight text-[#191F28]">
-          마이링크
-        </span>
-      </Link>
+      {/* 1. 좌측 로고 및 내비게이션 탭 */}
+      <div className="flex items-center gap-2 sm:gap-6 shrink-0">
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3182F6] text-white shadow-xs">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+            </svg>
+          </div>
+          <span className="text-[16px] sm:text-[17px] font-bold tracking-tight text-[#191F28] hidden xs:inline">
+            마이링크
+          </span>
+        </Link>
 
-      {/* 우측 인증 및 액션 영역 */}
+        {/* 메인 내비게이션 (내 링크 / 통계 페이지 이동 탭) */}
+        <nav className="flex items-center gap-1 bg-[#F2F4F6] p-1 rounded-full border border-[#E5E8EB]/50">
+          <Link
+            href="/"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[12px] sm:text-[13px] font-semibold transition-all",
+              pathname === "/"
+                ? "bg-white text-[#3182F6] shadow-xs"
+                : "text-[#6B7684] hover:text-[#191F28] hover:bg-white/50"
+            )}
+            title="내 링크 관리 페이지"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span>내 링크</span>
+          </Link>
+
+          <Link
+            href="/stats"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[12px] sm:text-[13px] font-semibold transition-all",
+              pathname === "/stats"
+                ? "bg-white text-[#3182F6] shadow-xs"
+                : "text-[#6B7684] hover:text-[#191F28] hover:bg-white/50"
+            )}
+            title="통계 대시보드 페이지"
+          >
+            <BarChart2 className="w-3.5 h-3.5" />
+            <span>통계</span>
+          </Link>
+        </nav>
+      </div>
+
+      {/* 2. 우측 인증 및 보조 액션 영역 */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {loading ? (
           <div className="h-8 w-24 animate-pulse rounded-xl bg-[#F2F4F6]" />
         ) : user ? (
           <>
-            {/* 1번: 프로필 아바타 바로 옆 내 페이지 바로가기 버튼 (반응형: 모바일 아이콘 캡슐 / 데스크톱 라벨) */}
+            {/* 프로필 아바타 바로 옆 내 공개 페이지 바로가기 버튼 */}
             {targetHref && (
               <Link
                 href={targetHref}
@@ -150,7 +202,7 @@ export function TopBar({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onShare}
+          onClick={handleShareClick}
           className="h-8 rounded-full px-2 sm:px-2.5 font-semibold text-[#4E5968] hover:bg-[#F2F4F6] hover:text-[#191F28]"
           aria-label="프로필 주소 공유"
         >

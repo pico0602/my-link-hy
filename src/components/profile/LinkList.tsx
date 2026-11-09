@@ -27,7 +27,7 @@ import { formatRelativeTime } from "@/lib/utils";
 interface LinkListProps {
   links: LinkItem[];
   isLoading?: boolean;
-  onLinkClick: (id: string, url: string) => void;
+  onLinkClick: (id: string, url?: string) => void;
   onAddLink?: (data: {
     title: string;
     url: string;
@@ -213,17 +213,12 @@ export function LinkList({
                   key={link.id}
                   className="group flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[#F9FAFB] select-none"
                 >
-                  {/* 왼쪽: 아이콘 컨테이너 (44px) + 텍스트 (클릭 시 링크 이동) */}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onLinkClick(link.id, link.url)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onLinkClick(link.id, link.url);
-                      }
-                    }}
+                  {/* 왼쪽: 아이콘 컨테이너 (44px) + 텍스트 (클릭 시 새 탭으로 이동 및 클릭 감지) */}
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onLinkClick(link.id)}
                     className="flex flex-1 items-center gap-3.5 min-w-0 pr-2 cursor-pointer focus:outline-none"
                   >
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F4F6] group-hover:bg-[#E8F3FF] transition-colors">
@@ -238,10 +233,10 @@ export function LinkList({
                           <Badge
                             variant={
                               link.badge === "신규"
-                               ? "success"
-                               : link.badge === "대표"
-                               ? "brand"
-                               : "default"
+                                ? "success"
+                                : link.badge === "대표"
+                                ? "brand"
+                                : "default"
                             }
                           >
                             {link.badge}
@@ -263,16 +258,19 @@ export function LinkList({
                         </div>
                       )}
                     </div>
-                  </div>
+                  </a>
 
-                  {/* 오른쪽: 클릭수 + 항상 표시되는 [수정][삭제] 버튼 + 이동 화살표 */}
+                  {/* 오른쪽: 클릭수(조회수) + 항상 표시되는 [수정][삭제] 버튼 + 이동 화살표 */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 pl-1">
-                    {clicks > 0 && (
-                      <span className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-medium text-[#8B95A1] mr-1">
-                        <TrendingUp className="w-3 h-3 text-[#B0B8C1]" />
-                        {clicks.toLocaleString()}
-                      </span>
-                    )}
+                    {/* 조회수 (0이어도 표시) */}
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-[#6B7684] px-1.5 py-0.5 rounded-md bg-[#F2F4F6] mr-0.5"
+                      title={`조회수 ${clicks.toLocaleString()}회`}
+                      aria-label={`조회수 ${clicks.toLocaleString()}회`}
+                    >
+                      <TrendingUp className="w-3 h-3 text-[#8B95A1]" />
+                      <span>{clicks.toLocaleString()}</span>
+                    </span>
 
                     {/* 수정 버튼: 항상 표시됨 */}
                     {onUpdateLink && (
@@ -306,15 +304,17 @@ export function LinkList({
                       </button>
                     )}
 
-                    {/* 외부 이동 Chevron (누르면 링크 열림) */}
-                    <button
-                      type="button"
-                      onClick={() => onLinkClick(link.id, link.url)}
+                    {/* 외부 이동 Chevron (누르면 새 탭으로 링크 열림) */}
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => onLinkClick(link.id)}
                       className="p-1 text-[#B0B8C1] group-hover:text-[#3182F6] group-hover:translate-x-0.5 transition-all cursor-pointer"
-                      aria-label="링크 열기"
+                      aria-label="링크 새 탭으로 열기"
                     >
                       <ChevronRight className="w-4 h-4" />
-                    </button>
+                    </a>
                   </div>
                 </div>
               );

@@ -15,7 +15,7 @@ import {
   increment,
   Unsubscribe,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { LinkItem } from "@/types/link";
 import { DEFAULT_PROFILE } from "@/lib/storage";
 
@@ -838,26 +838,65 @@ export async function findUserByDisplayName(
 }
 
 /**
- * users/{userId}/links/{linkId} 문서의 클릭 수를 증가시킵니다.
+ * users/{userId}/links/{linkId} 문서의 클릭 카운트를 안전하게 증가시킵니다.
+ * - 통계 객관성을 위해 프로필 소유자 본인(auth.currentUser.uid === userId)의 클릭은 제외
+ * - 외부 방문자(비로그인 또는 타 사용자)의 유효한 클릭만 원자적(increment(1))으로 집계
+ */
+export async function recordLinkClick(
+  userId: string | null | undefined,
+  linkId: string
+): Promise<boolean> {
+  if (!userId || userId.trim() === "" || userId === ANONYMOUS_DOC_ID) {
+    return false;
+  }
+
+  if (!linkId || linkId.trim() === "") {
+    return false;
+  }
+
+  // 1. 통계 객관성 보장: 프로필 소유자(본인)의 클릭인지 검사
+  const currentUser = auth.currentUser;
+  if (currentUser && currentUser.uid === userId.trim()) {
+    console.info("[통계 제외] 프로필 소유자 본인의 클릭이므로 조회수에 반영되지 않습니다.");
+    return false;
+  }
+
+  try {
+    // 2. 외부 방문자의 클릭 카운트 원자적 증가 (동시 클릭에도 안전하게 increment(1))
+    const docRef = getUserLinkDoc(userId.trim(), linkId.trim());
+    await updateDoc(docRef, {
+      clickCount: increment(1),
+      clicks: increment(1), // 하위 호환성 유지
+      lastClickedAt: new Date().toISOString(),
+    });
+
+    return true;
+  } catch (error: any) {
+    // Firestore Security Rules 미설정 등으로 인한 권한 거부 시 안내
+    const isPermissionError =
+      error?.code === "permission-denied" || error?.message?.includes("permissions");
+    if (isPermissionError) {
+      console.warn(
+        "방문자 클릭 카운트 저장을 위해 Firebase Console에서 clickCount 업데이트 보안 규칙 허용이 필요합니다.",
+        error
+      );
+    } else {
+      console.error("클릭 카운트 저장 중 오류:", error);
+    }
+    return false;
+  }
+}
+
+/**
+ * users/{userId}/links/{linkId} 문서의 클릭 수를 증가시킵니다. (recordLinkClick의 alias)
  */
 export async function incrementLinkClick(
   userId: string,
   linkId: string
 ): Promise<void> {
-  if (!userId || !linkId || userId === ANONYMOUS_DOC_ID) return;
-
-  try {
-    const docRef = getUserLinkDoc(userId, linkId);
-    await updateDoc(docRef, {
-      clicks: increment(1),
-      clickCount: increment(1),
-      lastClickedAt: new Date().toISOString(),
-    });
-  } catch (err) {
-    // 권한 또는 문서 미존재 등으로 인한 오류는 조용히 무시
-    console.warn("incrementLinkClick warning:", err);
-  }
+  await recordLinkClick(userId, linkId);
 }
+
 
 
 

@@ -6,7 +6,6 @@ import {
   Share2,
   ExternalLink,
   ChevronRight,
-  TrendingUp,
   Heart,
   Copy,
   Mail,
@@ -17,7 +16,13 @@ import {
   Coffee,
 } from "lucide-react";
 import { LinkItem, LinkCategoryType, CategoryItem } from "@/types/link";
-import { SearchedUser, incrementLinkClick, subscribeFirestoreLinks } from "@/lib/firestore";
+import {
+  SearchedUser,
+  recordLinkClick,
+  incrementLinkClick,
+  subscribeFirestoreLinks,
+} from "@/lib/firestore";
+import { auth } from "@/lib/firebase";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback, AvatarIndicator } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -137,27 +142,24 @@ export function PublicProfileView({ user, initialLinks }: PublicProfileViewProps
     return name.slice(0, 2).toUpperCase();
   };
 
-  // 링크 클릭 핸들러 (새 탭으로 열기 + 클릭 수 카운트 증가)
+  // 링크 클릭 핸들러 (새 탭으로 열기 + 외부 방문자일 때만 클릭 수 카운트 증가)
   const handleLinkClick = useCallback(
-    (linkId: string, url: string) => {
-      // 1. 로컬 상태 즉시 증가
-      setLinks((prev) =>
-        prev.map((l) =>
-          l.id === linkId
-            ? {
-                ...l,
-                clicks: (l.clicks ?? l.clickCount ?? 0) + 1,
-                clickCount: (l.clickCount ?? l.clicks ?? 0) + 1,
-              }
-            : l
-        )
-      );
+    (linkId: string, url?: string) => {
+      const currentUser = auth.currentUser;
+      const isOwner = currentUser && currentUser.uid === user.userId;
 
-      // 2. Firestore 클릭 수 증가 시도
-      incrementLinkClick(user.userId, linkId);
+      // 1. 소유자 본인 클릭 시 통계 왜곡 방지를 위해 제외
+      if (isOwner) {
+        console.info("[통계 제외] 프로필 소유자 본인의 클릭이므로 조회수가 집계되지 않습니다.");
+      } else {
+        // 2. 외부 방문자(비로그인 또는 타 사용자)의 유효한 유입만 클릭수 카운트
+        recordLinkClick(user.userId, linkId).catch((err) => {
+          console.warn("방문자 클릭 카운트 저장 안내:", err);
+        });
+      }
 
-      // 3. 새 탭으로 링크 열기
-      if (typeof window !== "undefined") {
+      // 3. 링크는 새 탭으로 열림 (target='_blank') fallback
+      if (url && typeof window !== "undefined") {
         window.open(url, "_blank", "noopener,noreferrer");
       }
     },
@@ -393,20 +395,13 @@ export function PublicProfileView({ user, initialLinks }: PublicProfileViewProps
               </div>
             ) : (
               displayedLinks.map((link) => {
-                const clicks = link.clicks ?? link.clickCount ?? 0;
-
                 return (
-                  <div
+                  <a
                     key={link.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => handleLinkClick(link.id, link.url)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleLinkClick(link.id, link.url);
-                      }
-                    }}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => handleLinkClick(link.id)}
                     className="group flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[#F9FAFB] cursor-pointer focus:outline-none select-none"
                   >
                     {/* 왼쪽 아이콘 + 제목/부제목 */}
@@ -451,19 +446,13 @@ export function PublicProfileView({ user, initialLinks }: PublicProfileViewProps
                       </div>
                     </div>
 
-                    {/* 오른쪽 클릭수 + 새 탭 이동 Chevron */}
+                    {/* 오른쪽 새 탭 이동 Chevron (개인별 공개 페이지에서는 조회수 비노출) */}
                     <div className="flex items-center gap-2 shrink-0 pl-1">
-                      {clicks > 0 && (
-                        <span className="hidden sm:inline-flex items-center gap-0.5 text-[11px] font-medium text-[#8B95A1]">
-                          <TrendingUp className="w-3 h-3 text-[#B0B8C1]" />
-                          {clicks.toLocaleString()}
-                        </span>
-                      )}
                       <div className="p-1 text-[#B0B8C1] group-hover:text-[#3182F6] group-hover:translate-x-0.5 transition-all">
                         <ChevronRight className="w-4 h-4" />
                       </div>
                     </div>
-                  </div>
+                  </a>
                 );
               })
             )}

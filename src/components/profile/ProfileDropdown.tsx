@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { User } from "firebase/auth";
-import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck, UserCog, Globe, ExternalLink } from "lucide-react";
+import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck, UserCog, Globe, ExternalLink, BarChart2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
@@ -199,6 +199,16 @@ export function ProfileDropdown({
               <ExternalLink className="w-3.5 h-3.5 text-[#3182F6] opacity-70" />
             </Link>
           )}
+
+          {/* 통계 대시보드 바로가기 */}
+          <Link
+            href="/stats"
+            onClick={() => setIsOpen(false)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2 px-3 text-[13px] font-semibold text-[#191F28] bg-[#F2F4F6] hover:bg-[#E5E8EB] active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <BarChart2 className="w-4 h-4 text-[#3182F6]" />
+            <span>통계 대시보드 (/stats)</span>
+          </Link>
 
           {/* 프로필 수정 액션 버튼 */}
           {onEditProfile && (
