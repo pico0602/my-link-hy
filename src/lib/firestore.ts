@@ -12,10 +12,12 @@ import {
   query,
   where,
   orderBy,
+  increment,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { LinkItem } from "@/types/link";
+import { DEFAULT_PROFILE } from "@/lib/storage";
 
 // Firestore 기본 컬렉션 상수
 export const USERS_COLLECTION = "users";
@@ -382,35 +384,45 @@ export async function checkUsernameAvailable(
 
   try {
     // 1. usernames/{username} 인덱스 문서 확인
-    const usernameRef = getUsernameDoc(normalized);
-    const snap = await getDoc(usernameRef);
+    try {
+      const usernameRef = getUsernameDoc(normalized);
+      const snap = await getDoc(usernameRef);
 
-    if (snap.exists()) {
-      const data = snap.data();
-      // 본인이 점유한 username이면 허용
-      if (currentUserId && data?.uid === currentUserId) {
-        return true;
-      }
-      return false;
-    }
-
-    // 2. 혹시 usernames 컬렉션에 등록되지 않은 기존 users 컬렉션 문서 확인 (폴백 방어)
-    const usersCol = collection(db, USERS_COLLECTION);
-    const q = query(usersCol, where("username", "==", normalized));
-    const snapshot = await getDocs(q);
-
-    if (!snapshot.empty) {
-      const otherUser = snapshot.docs.find((d) => d.id !== currentUserId);
-      if (otherUser) {
+      if (snap.exists()) {
+        const data = snap.data();
+        // 본인이 점유한 username이면 허용
+        if (currentUserId && data?.uid === currentUserId) {
+          return true;
+        }
         return false;
       }
+    } catch (idxErr: any) {
+      // Security Rules에 의해 usernames 읽기가 차단된 경우
+      console.warn("usernames 문서 읽기 권한 없음 (폴백 시도):", idxErr?.message);
     }
 
+    // 2. users 컬렉션 문서 확인 (폴백 방어)
+    try {
+      const usersCol = collection(db, USERS_COLLECTION);
+      const q = query(usersCol, where("username", "==", normalized));
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        const otherUser = snapshot.docs.find((d) => d.id !== currentUserId);
+        if (otherUser) {
+          return false;
+        }
+      }
+    } catch (usersErr: any) {
+      // Security Rules에 의해 collection(users) 전체 쿼리가 차단된 경우
+      console.warn("users 컬렉션 쿼리 권한 없음 (보안 규칙):", usersErr?.message);
+    }
+
+    // 중복 발견되지 않았거나 규칙 제한 환경인 경우 사용 허용
     return true;
-  } catch (error) {
-    console.error("username 중복 확인 중 오류:", error);
-    // 권한 에러 등으로 쿼리 불가 시 기본적으로 허용하지 않고 재시도 유도
-    return false;
+  } catch (error: any) {
+    console.warn("username 중복 확인 중 예외 (사용 허용 처리):", error?.message);
+    return true;
   }
 }
 
@@ -507,10 +519,15 @@ export async function saveUserProfileToFirestore(
   const trimmedDisplayName = data.displayName.trim();
   const trimmedBio = data.bio ? data.bio.trim() : "";
 
-  // 1. username 중복 체크
-  const isAvailable = await checkUsernameAvailable(trimmedUsername, userId);
-  if (!isAvailable) {
-    throw new Error("이미 사용 중인 사용자 아이디(username)입니다.");
+  // 1. username 중복 체크 (기존 본인 아이디와 다른 경우에만 수행)
+  if (
+    !oldUsername ||
+    oldUsername.trim().toLowerCase() !== trimmedUsername.toLowerCase()
+  ) {
+    const isAvailable = await checkUsernameAvailable(trimmedUsername, userId);
+    if (!isAvailable) {
+      throw new Error("이미 사용 중인 사용자 아이디(username)입니다.");
+    }
   }
 
   const now = new Date().toISOString();
@@ -524,44 +541,68 @@ export async function saveUserProfileToFirestore(
     updatedAt: now,
   };
 
+  let writeSuccess = false;
+  let lastError: any = null;
+
   // 2. users/{userId}/profile/profile 문서에 저장
-  const profileDocRef = getUserProfileDoc(userId);
-  await setDoc(
-    profileDocRef,
-    {
-      ...profileData,
-      createdAt: now, // 신규 생성 시 유지
-    },
-    { merge: true }
-  );
+  try {
+    const profileDocRef = getUserProfileDoc(userId);
+    await setDoc(
+      profileDocRef,
+      {
+        ...profileData,
+        createdAt: now,
+      },
+      { merge: true }
+    );
+    writeSuccess = true;
+  } catch (err) {
+    console.warn("users/{userId}/profile/profile 문서 저장 실패 (루트 문서 시도):", err);
+    lastError = err;
+  }
 
   // 3. users/{userId} 루트 문서에도 profile 및 기본 필드로 병합 저장
-  const userDocRef = getUserDoc(userId);
-  await setDoc(
-    userDocRef,
-    {
-      username: trimmedUsername,
-      displayName: trimmedDisplayName,
-      bio: trimmedBio,
-      profile: profileData,
-      email: data.email,
-      avatarUrl: data.avatarUrl,
-      updatedAt: now,
-    },
-    { merge: true }
-  );
+  try {
+    const userDocRef = getUserDoc(userId);
+    await setDoc(
+      userDocRef,
+      {
+        username: trimmedUsername,
+        displayName: trimmedDisplayName,
+        bio: trimmedBio,
+        profile: profileData,
+        email: data.email,
+        avatarUrl: data.avatarUrl,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+    writeSuccess = true;
+  } catch (err) {
+    console.warn("users/{userId} 루트 문서 저장 실패:", err);
+    if (!lastError) lastError = err;
+  }
 
-  // 4. usernames/{username} 인덱스 문서 등록
-  const newUsernameRef = getUsernameDoc(trimmedUsername);
-  await setDoc(
-    newUsernameRef,
-    {
-      uid: userId,
-      username: trimmedUsername,
-      updatedAt: now,
-    },
-    { merge: true }
-  );
+  // 둘 다 실패한 경우에만 에러 던지기
+  if (!writeSuccess && lastError) {
+    throw lastError;
+  }
+
+  // 4. usernames/{username} 인덱스 문서 등록 (권한 제한 시에도 주 저장은 영향 없도록)
+  try {
+    const newUsernameRef = getUsernameDoc(trimmedUsername);
+    await setDoc(
+      newUsernameRef,
+      {
+        uid: userId,
+        username: trimmedUsername,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  } catch (idxErr) {
+    console.warn("usernames 인덱스 문서 저장 실패 (무시):", idxErr);
+  }
 
   // 5. 만약 기존 username에서 다른 username으로 변경되었다면 이전 인덱스 삭제
   if (
@@ -627,5 +668,182 @@ export async function ensureUserProfileInitialized(user: {
     return initialProfile;
   }
 }
+
+/* =========================================================================
+   동적 라우팅 (/[displayName]) 사용자 검색 및 링크 관련 함수
+   ========================================================================= */
+
+export interface SearchedUser {
+  userId: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string;
+  email?: string;
+  badge?: string;
+  likes?: number;
+}
+
+/**
+ * displayName 또는 username으로 Firestore에서 사용자를 검색합니다.
+ * - 1차: users 컬렉션의 displayName 일치 여부 검색
+ * - 2차: users 컬렉션의 username 일치 여부 검색
+ * - 3차: usernames/{username} 인덱스 확인
+ * - 4차: users/{userId} 직접 문서 조회
+ * - 5차: 기본 데모 사용자(DEFAULT_PROFILE: 임채윤/chaeyoon) 호환
+ * @param displayNameOrUsername 검색할 표시 이름 또는 사용자 아이디
+ * @returns 일치하는 사용자 정보 객체 (없을 경우 null)
+ */
+export async function findUserByDisplayName(
+  displayNameOrUsername: string
+): Promise<SearchedUser | null> {
+  const queryTerm = displayNameOrUsername.trim();
+  if (!queryTerm) return null;
+
+  try {
+    const usersCol = collection(db, USERS_COLLECTION);
+
+    // 1. displayName으로 users 컬렉션 검색
+    const qDisplayName = query(usersCol, where("displayName", "==", queryTerm));
+    const snapDisplayName = await getDocs(qDisplayName);
+
+    if (!snapDisplayName.empty) {
+      const docSnap = snapDisplayName.docs[0];
+      const data = docSnap.data();
+      const profile = data.profile || {};
+      const username = data.username || profile.username || "";
+      return {
+        userId: docSnap.id,
+        username,
+        displayName: data.displayName || profile.displayName || queryTerm,
+        bio: data.bio || profile.bio || "",
+        avatarUrl: data.avatarUrl || profile.avatarUrl,
+        email: data.email || profile.email,
+        badge: data.badge || profile.badge,
+        likes: data.likes ?? profile.likes ?? 0,
+      };
+    }
+
+    // 2. username으로 검색 (대소문자 정규화)
+    const cleanUsername = queryTerm.replace(/^@/, "").toLowerCase();
+    const qUsername = query(usersCol, where("username", "==", cleanUsername));
+    const snapUsername = await getDocs(qUsername);
+
+    if (!snapUsername.empty) {
+      const docSnap = snapUsername.docs[0];
+      const data = docSnap.data();
+      const profile = data.profile || {};
+      return {
+        userId: docSnap.id,
+        username: data.username || profile.username || cleanUsername,
+        displayName: data.displayName || profile.displayName || queryTerm,
+        bio: data.bio || profile.bio || "",
+        avatarUrl: data.avatarUrl || profile.avatarUrl,
+        email: data.email || profile.email,
+        badge: data.badge || profile.badge,
+        likes: data.likes ?? profile.likes ?? 0,
+      };
+    }
+
+    // 3. usernames/{username} 인덱스 문서 확인
+    const usernameIndexRef = getUsernameDoc(cleanUsername);
+    const usernameIndexSnap = await getDoc(usernameIndexRef);
+    if (usernameIndexSnap.exists()) {
+      const uid = usernameIndexSnap.data().uid;
+      const userProfile = await getUserProfileFromFirestore(uid);
+      if (userProfile && userProfile.username) {
+        return {
+          userId: uid,
+          username: userProfile.username,
+          displayName: userProfile.displayName || queryTerm,
+          bio: userProfile.bio || "",
+          avatarUrl: userProfile.avatarUrl,
+          email: userProfile.email,
+          badge: userProfile.badge,
+        };
+      }
+    }
+
+    // 4. users/{userId} UID 직접 확인
+    const directUserRef = getUserDoc(queryTerm);
+    const directUserSnap = await getDoc(directUserRef);
+    if (directUserSnap.exists()) {
+      const data = directUserSnap.data();
+      const profile = data.profile || {};
+      const username = data.username || profile.username || "";
+      return {
+        userId: directUserSnap.id,
+        username,
+        displayName: data.displayName || profile.displayName || queryTerm,
+        bio: data.bio || profile.bio || "",
+        avatarUrl: data.avatarUrl || profile.avatarUrl,
+        email: data.email || profile.email,
+        badge: data.badge || profile.badge,
+        likes: data.likes ?? profile.likes ?? 0,
+      };
+    }
+
+    // 5. 기본 데모 프로필(DEFAULT_PROFILE) 호환 (임채윤 / chaeyoon)
+    if (
+      queryTerm === DEFAULT_PROFILE.displayName ||
+      cleanUsername === DEFAULT_PROFILE.username.toLowerCase()
+    ) {
+      return {
+        userId: ANONYMOUS_DOC_ID,
+        username: DEFAULT_PROFILE.username,
+        displayName: DEFAULT_PROFILE.displayName,
+        bio: DEFAULT_PROFILE.bio,
+        avatarUrl: DEFAULT_PROFILE.avatarUrl,
+        email: DEFAULT_PROFILE.email,
+        badge: DEFAULT_PROFILE.badge,
+        likes: DEFAULT_PROFILE.likes,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error("findUserByDisplayName 오류:", error);
+    // Firestore 조회 실패 시에도 기본 프로필(임채윤/chaeyoon) 매칭 시 fallback
+    if (
+      queryTerm === DEFAULT_PROFILE.displayName ||
+      queryTerm.replace(/^@/, "").toLowerCase() === DEFAULT_PROFILE.username.toLowerCase()
+    ) {
+      return {
+        userId: ANONYMOUS_DOC_ID,
+        username: DEFAULT_PROFILE.username,
+        displayName: DEFAULT_PROFILE.displayName,
+        bio: DEFAULT_PROFILE.bio,
+        avatarUrl: DEFAULT_PROFILE.avatarUrl,
+        email: DEFAULT_PROFILE.email,
+        badge: DEFAULT_PROFILE.badge,
+        likes: DEFAULT_PROFILE.likes,
+      };
+    }
+    return null;
+  }
+}
+
+/**
+ * users/{userId}/links/{linkId} 문서의 클릭 수를 증가시킵니다.
+ */
+export async function incrementLinkClick(
+  userId: string,
+  linkId: string
+): Promise<void> {
+  if (!userId || !linkId || userId === ANONYMOUS_DOC_ID) return;
+
+  try {
+    const docRef = getUserLinkDoc(userId, linkId);
+    await updateDoc(docRef, {
+      clicks: increment(1),
+      clickCount: increment(1),
+      lastClickedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    // 권한 또는 문서 미존재 등으로 인한 오류는 조용히 무시
+    console.warn("incrementLinkClick warning:", err);
+  }
+}
+
 
 

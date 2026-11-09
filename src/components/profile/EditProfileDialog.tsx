@@ -89,7 +89,13 @@ export function EditProfileDialog({
       setUsernameStatus("idle");
       setServerError(null);
     }
-  }, [open, initialData, reset]);
+  }, [
+    open,
+    initialData.username,
+    initialData.displayName,
+    initialData.bio,
+    reset,
+  ]);
 
   // username 디바운스 중복 검사 (사용자가 입력하는 동안 비동기 사전 체크)
   useEffect(() => {

@@ -346,7 +346,7 @@ export function useProfile() {
     async (data: { username: string; displayName: string; bio: string }) => {
       if (!user) {
         showToast("프로필을 수정하려면 먼저 로그인해 주세요.");
-        return;
+        throw new Error("프로필 저장을 위해 먼저 Google 로그인을 진행해 주세요.");
       }
 
       setIsUpdatingProfile(true);

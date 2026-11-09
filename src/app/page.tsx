@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { TopBar } from "@/components/profile/TopBar";
 import { ProfileCard } from "@/components/profile/ProfileCard";
@@ -16,6 +17,7 @@ import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 
 export default function HomePage() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const { signInWithGoogle } = useAuth();
 
   const {
     user,
@@ -35,6 +37,23 @@ export default function HomePage() {
     handleUpdateProfile,
   } = useProfile();
 
+  const handleOpenEditProfile = async () => {
+    if (!user) {
+      showToast("프로필을 수정하려면 먼저 로그인이 필요해요.");
+      try {
+        const loggedIn = await signInWithGoogle();
+        if (loggedIn) {
+          showToast(`${loggedIn.displayName || "사용자"}님, 환영합니다!`);
+          setIsEditProfileOpen(true);
+        }
+      } catch (err) {
+        console.error("로그인 중 에러:", err);
+      }
+      return;
+    }
+    setIsEditProfileOpen(true);
+  };
+
   return (
     <div className="relative min-h-screen w-full bg-[#F2F4F6] text-[#191F28] pb-32">
       {/* 1. TopBar (56px, Sticky) - Google 로그인/로그아웃 및 사용자 프로필 드롭다운 */}
@@ -50,7 +69,7 @@ export default function HomePage() {
         onCopyUid={() => {
           showToast("고유 식별자(UID)가 복사되었어요");
         }}
-        onEditProfile={() => setIsEditProfileOpen(true)}
+        onEditProfile={handleOpenEditProfile}
       />
 
       {/* 메인 모바일 퍼스트 컨테이너 (max-w-[480px]) */}
@@ -62,7 +81,7 @@ export default function HomePage() {
           isLoggedIn={!authLoading && !!user}
           onCopyEmail={handleCopyEmail}
           onLike={handleLike}
-          onEditProfile={() => setIsEditProfileOpen(true)}
+          onEditProfile={handleOpenEditProfile}
         />
 
         {/* 4. 현황 요약 카드 2열 */}
@@ -124,19 +143,17 @@ export default function HomePage() {
       <BottomCTA onCopyEmail={handleCopyEmail} />
 
       {/* 10. 프로필 수정 다이얼로그 (users/{user.uid}/profile에 저장) */}
-      {user && (
-        <EditProfileDialog
-          open={isEditProfileOpen}
-          onOpenChange={setIsEditProfileOpen}
-          userId={user.uid}
-          initialData={{
-            username: profile.username || "",
-            displayName: profile.displayName || "",
-            bio: profile.bio || "",
-          }}
-          onSave={handleUpdateProfile}
-        />
-      )}
+      <EditProfileDialog
+        open={isEditProfileOpen}
+        onOpenChange={setIsEditProfileOpen}
+        userId={user?.uid || ""}
+        initialData={{
+          username: profile.username || "",
+          displayName: profile.displayName || "",
+          bio: profile.bio || "",
+        }}
+        onSave={handleUpdateProfile}
+      />
 
       {/* 11. TDS Toast 알림 */}
       <Toast message={toastMessage} />

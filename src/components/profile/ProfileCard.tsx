@@ -39,16 +39,16 @@ export function ProfileCard({
 
   return (
     <Card className="p-6 relative">
-      {/* 로그인 상태일 때 프로필 수정 버튼 */}
-      {isLoggedIn && onEditProfile && (
+      {/* 프로필 수정 버튼 */}
+      {onEditProfile && (
         <button
           type="button"
           onClick={onEditProfile}
-          className="absolute top-5 right-5 inline-flex items-center gap-1 rounded-full bg-[#F2F4F6] px-2.5 py-1 text-[12px] font-semibold text-[#4E5968] hover:bg-[#E5E8EB] hover:text-[#191F28] transition-colors cursor-pointer"
+          className="absolute top-5 right-5 inline-flex items-center gap-1.5 rounded-full bg-[#F2F4F6] px-3 py-1.5 text-[12px] font-semibold text-[#4E5968] hover:bg-[#E5E8EB] hover:text-[#191F28] active:scale-[0.98] transition-all cursor-pointer shadow-2xs border border-[#E5E8EB]"
           title="프로필 수정"
         >
           <Edit3 className="w-3.5 h-3.5 text-[#3182F6]" />
-          <span>수정</span>
+          <span>프로필 수정</span>
         </button>
       )}
 
