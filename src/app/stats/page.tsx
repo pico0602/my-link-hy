@@ -253,41 +253,38 @@ export default function StatsPage() {
 
   return (
     <div className="relative min-h-screen w-full bg-[#F2F4F6] text-[#191F28] pb-24">
-      {/* 1. 상단 내비게이션 바 */}
-      <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between bg-white/80 px-4 sm:px-6 backdrop-blur-md border-b border-[#E5E8EB]">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F4F6] text-[#4E5968] hover:bg-[#E5E8EB] active:scale-95 transition-all"
-            title="메인으로 돌아가기"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#3182F6]/10 text-[#3182F6]">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <h1 className="text-[16px] sm:text-[17px] font-bold tracking-tight text-[#191F28]">
-              링크 통계 대시보드
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href={publicPageHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#E8F3FF] px-3 text-[12px] sm:text-[13px] font-semibold text-[#3182F6] hover:bg-[#D4E8FF] transition-all"
-          >
-            <span>내 공개 페이지</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </header>
+      {/* 1. 통일된 상단 탑바 (내 링크 / 통계 페이지 탭 및 사용자 메뉴) */}
+      <TopBar
+        username={userUsername}
+        displayName={userDisplayName}
+        userPageHref={publicPageHref}
+        onLogoutSuccess={() => {
+          router.replace("/");
+        }}
+        onShare={() => {
+          if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.writeText(window.location.origin + publicPageHref);
+            alert("공개 프로필 주소가 복사되었어요!");
+          }
+        }}
+      />
 
       {/* 2. 메인 대시보드 컨테이너 */}
-      <main className="mx-auto flex w-full max-w-4xl flex-col px-4 pt-6 space-y-5">
+      <main className="mx-auto flex w-full max-w-4xl flex-col px-4 pt-5 space-y-5">
+        {/* 상단 브레드크럼 및 뒤로가기 */}
+        <div className="flex items-center justify-between px-1">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#6B7684] hover:text-[#191F28] transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>내 링크 목록으로</span>
+          </Link>
+
+          <span className="text-[12px] text-[#8B95A1] font-medium">
+            마이링크 &gt; 통계 대시보드
+          </span>
+        </div>
         {/* 상단 프로필 환영 배너 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-5 rounded-3xl bg-white border border-[#E5E8EB]/70 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
           <div>
