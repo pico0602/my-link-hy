@@ -8,16 +8,20 @@ import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
 
 interface TopBarProps {
   onShare: () => void;
+  username?: string;
   onLoginSuccess?: (userName: string) => void;
   onLogoutSuccess?: () => void;
   onCopyUid?: () => void;
+  onEditProfile?: () => void;
 }
 
 export function TopBar({
   onShare,
+  username,
   onLoginSuccess,
   onLogoutSuccess,
   onCopyUid,
+  onEditProfile,
 }: TopBarProps) {
   const { user, loading, signInWithGoogle, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,8 +73,10 @@ export function TopBar({
           /* 로그인 상태: 사용자 프로필 드롭다운 메뉴 */
           <ProfileDropdown
             user={user}
+            username={username}
             onLogout={handleLogout}
             onCopyUid={onCopyUid}
+            onEditProfile={onEditProfile}
           />
         ) : (
           /* 로그아웃 상태: "Google로 로그인" 버튼 (클릭 시 구글 팝업) */

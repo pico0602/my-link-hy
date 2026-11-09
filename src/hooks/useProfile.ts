@@ -15,6 +15,9 @@ import {
   deleteLinkFromFirestore,
   subscribeFirestoreLinks,
   sortByCreatedAtDesc,
+  saveUserProfileToFirestore,
+  ensureUserProfileInitialized,
+  checkUsernameAvailable,
   AddLinkInput,
   UpdateLinkInput,
   formatUrl,
@@ -29,6 +32,7 @@ export function useProfile() {
   const [hasLiked, setHasLiked] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<LinkCategoryType>("all");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   const currentFirestorePath = useMemo(() => {
     return user ? `users/${user.uid}/links` : null;
@@ -49,22 +53,41 @@ export function useProfile() {
     setHasLiked(storedLike);
   }, []);
 
-  // 사용자 로그인 상태에 따른 Firestore users/{user.uid}/links 실시간 구독 및 프로필 동기화
+  // 사용자 로그인 상태에 따른 Firestore users/{user.uid}/profile 및 links 실시간 동기화
   useEffect(() => {
     if (!isMounted) return;
 
     if (user) {
       setIsLoadingLinks(true);
 
-      // 로그인된 사용자 프로필 정보 동기화
-      setProfile((prev) => ({
-        ...prev,
-        displayName: user.displayName || prev.displayName,
-        email: user.email || prev.email,
-        avatarUrl: user.photoURL || prev.avatarUrl,
-      }));
+      // 1. users/{user.uid}/profile 조회 및 없으면 이메일/구글 이름 기반 초기 생성
+      ensureUserProfileInitialized(user)
+        .then((loadedProfile) => {
+          setProfile((prev) => {
+            const updated = {
+              ...prev,
+              username: loadedProfile.username || prev.username,
+              displayName: loadedProfile.displayName || prev.displayName,
+              bio: loadedProfile.bio !== undefined ? loadedProfile.bio : prev.bio,
+              email: user.email || prev.email,
+              avatarUrl: user.photoURL || prev.avatarUrl,
+            };
+            saveStoredProfile(updated);
+            return updated;
+          });
+        })
+        .catch((err) => {
+          console.error("Firestore 프로필 동기화 실패:", err);
+          // 실패 시에도 Firebase Auth 기본 정보로 fallback
+          setProfile((prev) => ({
+            ...prev,
+            displayName: user.displayName || prev.displayName,
+            email: user.email || prev.email,
+            avatarUrl: user.photoURL || prev.avatarUrl,
+          }));
+        });
 
-      // Firestore의 `users/${user.uid}/links` 경로 실시간 동기화
+      // 2. Firestore의 `users/${user.uid}/links` 경로 실시간 동기화
       const unsubscribe = subscribeFirestoreLinks(
         user.uid,
         (firestoreLinks) => {
@@ -88,10 +111,12 @@ export function useProfile() {
         unsubscribe();
       };
     } else {
-      // 로그아웃 상태일 때
+      // 로그아웃 상태일 때 기본 프로필 복원
       setProfile((prev) => ({
         ...prev,
+        username: DEFAULT_PROFILE.username,
         displayName: DEFAULT_PROFILE.displayName,
+        bio: DEFAULT_PROFILE.bio,
         email: DEFAULT_PROFILE.email,
         avatarUrl: DEFAULT_PROFILE.avatarUrl,
         links: [],
@@ -316,12 +341,71 @@ export function useProfile() {
     [user, showToast]
   );
 
+  // 프로필 수정 (Firestore users/{user.uid}/profile 저장 및 중복 체크)
+  const handleUpdateProfile = useCallback(
+    async (data: { username: string; displayName: string; bio: string }) => {
+      if (!user) {
+        showToast("프로필을 수정하려면 먼저 로그인해 주세요.");
+        return;
+      }
+
+      setIsUpdatingProfile(true);
+      try {
+        const oldUsername = profile.username;
+        const updated = await saveUserProfileToFirestore(
+          user.uid,
+          {
+            username: data.username,
+            displayName: data.displayName,
+            bio: data.bio,
+            email: user.email || undefined,
+            avatarUrl: user.photoURL || undefined,
+          },
+          oldUsername
+        );
+
+        // 로컬 상태 즉시 반영
+        setProfile((prev) => {
+          const next = {
+            ...prev,
+            username: updated.username,
+            displayName: updated.displayName,
+            bio: updated.bio,
+          };
+          saveStoredProfile(next);
+          return next;
+        });
+
+        showToast("프로필이 성공적으로 저장되었어요");
+        return updated;
+      } catch (error: any) {
+        console.error("Firestore 프로필 저장 실패:", error);
+        const errMsg = error?.message || "프로필 저장 중 오류가 발생했어요.";
+        showToast(errMsg);
+        throw error;
+      } finally {
+        setIsUpdatingProfile(false);
+      }
+    },
+    [user, profile.username, showToast]
+  );
+
+  // username 중복 확인 헬퍼
+  const handleCheckUsername = useCallback(
+    async (username: string) => {
+      if (!user) return true;
+      return await checkUsernameAvailable(username, user.uid);
+    },
+    [user]
+  );
+
   return {
     user,
     authLoading,
     profile,
     isMounted,
     isLoadingLinks,
+    isUpdatingProfile,
     hasLiked,
     toastMessage,
     selectedCategory,
@@ -335,5 +419,7 @@ export function useProfile() {
     handleAddLink,
     handleUpdateLink,
     handleDeleteLink,
+    handleUpdateProfile,
+    handleCheckUsername,
   };
 }

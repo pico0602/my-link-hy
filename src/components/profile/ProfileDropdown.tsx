@@ -2,17 +2,25 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { User } from "firebase/auth";
-import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck } from "lucide-react";
+import { ChevronDown, Copy, Check, LogOut, Loader2, ShieldCheck, UserCog } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 interface ProfileDropdownProps {
   user: User;
+  username?: string;
   onLogout: () => Promise<void>;
   onCopyUid?: () => void;
+  onEditProfile?: () => void;
 }
 
-export function ProfileDropdown({ user, onLogout, onCopyUid }: ProfileDropdownProps) {
+export function ProfileDropdown({
+  user,
+  username,
+  onLogout,
+  onCopyUid,
+  onEditProfile,
+}: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -112,6 +120,11 @@ export function ProfileDropdown({ user, onLogout, onCopyUid }: ProfileDropdownPr
                 <h3 className="text-[15px] font-bold text-[#191F28] truncate tracking-tight">
                   {displayName}
                 </h3>
+                {username && (
+                  <span className="text-[11px] font-semibold text-[#3182F6] bg-[#E8F3FF] px-1.5 py-0.5 rounded-md">
+                    @{username}
+                  </span>
+                )}
               </div>
               <p className="text-[12px] text-[#8B95A1] truncate mt-0.5">
                 {user.email || "이메일 정보 없음"}
@@ -171,8 +184,23 @@ export function ProfileDropdown({ user, onLogout, onCopyUid }: ProfileDropdownPr
             </p>
           </div>
 
+          {/* 프로필 수정 액션 버튼 */}
+          {onEditProfile && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onEditProfile();
+              }}
+              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl py-2 px-3 text-[13px] font-semibold text-[#3182F6] bg-[#E8F3FF] hover:bg-[#D4E8FF] active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <UserCog className="w-4 h-4 text-[#3182F6]" />
+              <span>프로필 정보 수정</span>
+            </button>
+          )}
+
           {/* 구분선 */}
-          <div className="my-3 border-t border-[#F2F4F6]" />
+          <div className="my-2.5 border-t border-[#F2F4F6]" />
 
           {/* 3. 하단 로그아웃 액션 버튼 */}
           <button

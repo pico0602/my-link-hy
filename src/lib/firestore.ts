@@ -1,6 +1,8 @@
 import {
   collection,
   doc,
+  getDoc,
+  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -8,6 +10,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  where,
   orderBy,
   Unsubscribe,
 } from "firebase/firestore";
@@ -18,6 +21,9 @@ import { LinkItem } from "@/types/link";
 export const USERS_COLLECTION = "users";
 export const ANONYMOUS_DOC_ID = "anonymous";
 export const LINKS_SUBCOLLECTION = "links";
+export const PROFILE_SUBCOLLECTION = "profile";
+export const PROFILE_DOC_ID = "profile";
+export const USERNAMES_COLLECTION = "usernames";
 
 /**
  * users/{userId}/links 컬렉션 레퍼런스를 반환합니다.
@@ -320,4 +326,306 @@ export function subscribeFirestoreLinks(
     return () => {};
   }
 }
+
+/* =========================================================================
+   프로필 (Profile) 관리 함수들
+   경로: users/{userId}/profile (서브컬렉션 문서: users/{userId}/profile/profile)
+   중복 체크: usernames/{username}
+   ========================================================================= */
+
+export interface UserProfileData {
+  username: string;
+  displayName: string;
+  bio: string;
+  email?: string;
+  avatarUrl?: string;
+  badge?: string;
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+/**
+ * users/{userId}/profile/profile 문서 레퍼런스를 반환합니다.
+ */
+export function getUserProfileDoc(userId: string) {
+  return doc(db, USERS_COLLECTION, userId, PROFILE_SUBCOLLECTION, PROFILE_DOC_ID);
+}
+
+/**
+ * users/{userId} 루트 문서 레퍼런스를 반환합니다.
+ */
+export function getUserDoc(userId: string) {
+  return doc(db, USERS_COLLECTION, userId);
+}
+
+/**
+ * usernames/{username} 문서 레퍼런스를 반환합니다 (중복 검사용).
+ */
+export function getUsernameDoc(username: string) {
+  return doc(db, USERNAMES_COLLECTION, username.trim().toLowerCase());
+}
+
+/**
+ * username 사용 가능 여부 (중복 체크)
+ * @param username 확인할 사용자 아이디
+ * @param currentUserId 현재 로그인한 사용자의 UID (본인의 기존 아이디인 경우 사용 가능 처리)
+ * @returns true면 사용 가능, false면 이미 다른 사람이 사용 중(중복)
+ */
+export async function checkUsernameAvailable(
+  username: string,
+  currentUserId?: string
+): Promise<boolean> {
+  const normalized = username.trim().toLowerCase();
+  if (!normalized || normalized.length < 2) {
+    return false;
+  }
+
+  try {
+    // 1. usernames/{username} 인덱스 문서 확인
+    const usernameRef = getUsernameDoc(normalized);
+    const snap = await getDoc(usernameRef);
+
+    if (snap.exists()) {
+      const data = snap.data();
+      // 본인이 점유한 username이면 허용
+      if (currentUserId && data?.uid === currentUserId) {
+        return true;
+      }
+      return false;
+    }
+
+    // 2. 혹시 usernames 컬렉션에 등록되지 않은 기존 users 컬렉션 문서 확인 (폴백 방어)
+    const usersCol = collection(db, USERS_COLLECTION);
+    const q = query(usersCol, where("username", "==", normalized));
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const otherUser = snapshot.docs.find((d) => d.id !== currentUserId);
+      if (otherUser) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("username 중복 확인 중 오류:", error);
+    // 권한 에러 등으로 쿼리 불가 시 기본적으로 허용하지 않고 재시도 유도
+    return false;
+  }
+}
+
+/**
+ * 이메일 주소에서 기본 username을 자동 생성합니다.
+ * 예: "chaeyoon.lim@gmail.com" -> "chaeyoon.lim"
+ */
+export function generateDefaultUsername(email?: string | null): string {
+  if (!email) {
+    return `user_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  const prefix = email.split("@")[0] || "";
+  // 영문, 숫자, _, -, . 제외한 특수문자 제거
+  const sanitized = prefix.replace(/[^a-zA-Z0-9_.-]/g, "").toLowerCase();
+
+  if (sanitized.length >= 2) {
+    return sanitized.slice(0, 30);
+  }
+
+  return `user_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Firestore에서 사용자의 프로필 정보를 1회 조회합니다.
+ * users/{userId}/profile/profile 먼저 확인 후, 없으면 users/{userId} 확인.
+ */
+export async function getUserProfileFromFirestore(
+  userId: string
+): Promise<UserProfileData | null> {
+  try {
+    // 1. users/{userId}/profile/profile 확인
+    const profileDocRef = getUserProfileDoc(userId);
+    const profileSnap = await getDoc(profileDocRef);
+
+    if (profileSnap.exists()) {
+      const data = profileSnap.data();
+      return {
+        username: data.username || "",
+        displayName: data.displayName || "",
+        bio: data.bio || "",
+        email: data.email,
+        avatarUrl: data.avatarUrl,
+        badge: data.badge,
+        updatedAt: data.updatedAt,
+        createdAt: data.createdAt,
+      };
+    }
+
+    // 2. users/{userId} 루트 문서 확인
+    const userDocRef = getUserDoc(userId);
+    const userSnap = await getDoc(userDocRef);
+
+    if (userSnap.exists()) {
+      const uData = userSnap.data();
+      const pData = uData.profile || uData;
+      if (pData.username || pData.displayName) {
+        return {
+          username: pData.username || "",
+          displayName: pData.displayName || "",
+          bio: pData.bio || "",
+          email: pData.email || uData.email,
+          avatarUrl: pData.avatarUrl || uData.avatarUrl,
+          badge: pData.badge || uData.badge,
+          updatedAt: pData.updatedAt || uData.updatedAt,
+          createdAt: pData.createdAt || uData.createdAt,
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Firestore 프로필 조회 실패:", error);
+    return null;
+  }
+}
+
+/**
+ * users/{userId}/profile에 프로필 데이터를 저장하고, username 중복 확인 및 인덱싱을 수행합니다.
+ */
+export async function saveUserProfileToFirestore(
+  userId: string,
+  data: {
+    username: string;
+    displayName: string;
+    bio: string;
+    email?: string;
+    avatarUrl?: string;
+    badge?: string;
+  },
+  oldUsername?: string
+): Promise<UserProfileData> {
+  const trimmedUsername = data.username.trim();
+  const trimmedDisplayName = data.displayName.trim();
+  const trimmedBio = data.bio ? data.bio.trim() : "";
+
+  // 1. username 중복 체크
+  const isAvailable = await checkUsernameAvailable(trimmedUsername, userId);
+  if (!isAvailable) {
+    throw new Error("이미 사용 중인 사용자 아이디(username)입니다.");
+  }
+
+  const now = new Date().toISOString();
+  const profileData: UserProfileData = {
+    username: trimmedUsername,
+    displayName: trimmedDisplayName,
+    bio: trimmedBio,
+    email: data.email,
+    avatarUrl: data.avatarUrl,
+    badge: data.badge,
+    updatedAt: now,
+  };
+
+  // 2. users/{userId}/profile/profile 문서에 저장
+  const profileDocRef = getUserProfileDoc(userId);
+  await setDoc(
+    profileDocRef,
+    {
+      ...profileData,
+      createdAt: now, // 신규 생성 시 유지
+    },
+    { merge: true }
+  );
+
+  // 3. users/{userId} 루트 문서에도 profile 및 기본 필드로 병합 저장
+  const userDocRef = getUserDoc(userId);
+  await setDoc(
+    userDocRef,
+    {
+      username: trimmedUsername,
+      displayName: trimmedDisplayName,
+      bio: trimmedBio,
+      profile: profileData,
+      email: data.email,
+      avatarUrl: data.avatarUrl,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  // 4. usernames/{username} 인덱스 문서 등록
+  const newUsernameRef = getUsernameDoc(trimmedUsername);
+  await setDoc(
+    newUsernameRef,
+    {
+      uid: userId,
+      username: trimmedUsername,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  // 5. 만약 기존 username에서 다른 username으로 변경되었다면 이전 인덱스 삭제
+  if (
+    oldUsername &&
+    oldUsername.trim().toLowerCase() !== trimmedUsername.toLowerCase()
+  ) {
+    try {
+      const oldUsernameRef = getUsernameDoc(oldUsername);
+      await deleteDoc(oldUsernameRef);
+    } catch (delErr) {
+      console.warn("이전 username 인덱스 삭제 실패 (무시):", delErr);
+    }
+  }
+
+  return profileData;
+}
+
+/**
+ * 로그인 시 사용자의 프로필이 Firestore에 존재하는지 확인하고,
+ * 없으면 이메일 앞부분 기반 username과 구글 이름을 기본값으로 자동 생성하여 저장합니다.
+ */
+export async function ensureUserProfileInitialized(user: {
+  uid: string;
+  email?: string | null;
+  displayName?: string | null;
+  photoURL?: string | null;
+}): Promise<UserProfileData> {
+  // 1. 기존 저장된 프로필이 있는지 조회
+  const existing = await getUserProfileFromFirestore(user.uid);
+  if (existing && existing.username) {
+    return existing;
+  }
+
+  // 2. 없으면 기본값 자동 생성
+  let baseUsername = generateDefaultUsername(user.email);
+  let finalUsername = baseUsername;
+
+  // 중복 체크 및 충돌 시 유니크한 username 생성
+  let isAvail = await checkUsernameAvailable(finalUsername, user.uid);
+  let counter = 1;
+  while (!isAvail && counter <= 5) {
+    finalUsername = `${baseUsername}${Math.floor(100 + Math.random() * 900)}`;
+    isAvail = await checkUsernameAvailable(finalUsername, user.uid);
+    counter++;
+  }
+
+  const initialProfile: UserProfileData = {
+    username: finalUsername,
+    displayName:
+      user.displayName || (user.email ? user.email.split("@")[0] : "사용자"),
+    bio: "안녕하세요, 반가워요! 저만의 링크 공간입니다.",
+    email: user.email || undefined,
+    avatarUrl: user.photoURL || undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    await saveUserProfileToFirestore(user.uid, initialProfile);
+    return initialProfile;
+  } catch (err) {
+    console.error("초기 프로필 생성 실패:", err);
+    return initialProfile;
+  }
+}
+
 

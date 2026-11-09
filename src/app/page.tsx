@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useProfile } from "@/hooks/useProfile";
 import { TopBar } from "@/components/profile/TopBar";
 import { ProfileCard } from "@/components/profile/ProfileCard";
@@ -12,8 +12,11 @@ import { BottomCTA } from "@/components/profile/BottomCTA";
 import { Toast } from "@/components/profile/Toast";
 import { FirestorePathBanner } from "@/components/profile/FirestorePathBanner";
 import { LoginPromptCard } from "@/components/profile/LoginPromptCard";
+import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 
 export default function HomePage() {
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+
   const {
     user,
     authLoading,
@@ -29,12 +32,14 @@ export default function HomePage() {
     handleAddLink,
     handleUpdateLink,
     handleDeleteLink,
+    handleUpdateProfile,
   } = useProfile();
 
   return (
     <div className="relative min-h-screen w-full bg-[#F2F4F6] text-[#191F28] pb-32">
       {/* 1. TopBar (56px, Sticky) - Google 로그인/로그아웃 및 사용자 프로필 드롭다운 */}
       <TopBar
+        username={profile.username}
         onShare={handleShare}
         onLoginSuccess={(userName) => {
           showToast(`${userName}님, 환영합니다!`);
@@ -45,6 +50,7 @@ export default function HomePage() {
         onCopyUid={() => {
           showToast("고유 식별자(UID)가 복사되었어요");
         }}
+        onEditProfile={() => setIsEditProfileOpen(true)}
       />
 
       {/* 메인 모바일 퍼스트 컨테이너 (max-w-[480px]) */}
@@ -53,8 +59,10 @@ export default function HomePage() {
         <ProfileCard
           profile={profile}
           hasLiked={hasLiked}
+          isLoggedIn={!authLoading && !!user}
           onCopyEmail={handleCopyEmail}
           onLike={handleLike}
+          onEditProfile={() => setIsEditProfileOpen(true)}
         />
 
         {/* 4. 현황 요약 카드 2열 */}
@@ -115,7 +123,22 @@ export default function HomePage() {
       {/* 9. BottomCTA (이메일로 문의하기 하단 고정) */}
       <BottomCTA onCopyEmail={handleCopyEmail} />
 
-      {/* 10. TDS Toast 알림 */}
+      {/* 10. 프로필 수정 다이얼로그 (users/{user.uid}/profile에 저장) */}
+      {user && (
+        <EditProfileDialog
+          open={isEditProfileOpen}
+          onOpenChange={setIsEditProfileOpen}
+          userId={user.uid}
+          initialData={{
+            username: profile.username || "",
+            displayName: profile.displayName || "",
+            bio: profile.bio || "",
+          }}
+          onSave={handleUpdateProfile}
+        />
+      )}
+
+      {/* 11. TDS Toast 알림 */}
       <Toast message={toastMessage} />
     </div>
   );
