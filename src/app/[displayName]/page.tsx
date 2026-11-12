@@ -34,7 +34,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: `${user.displayName} (@${user.username})`,
       description: user.bio || `${user.displayName}님의 프로필 및 링크 모음`,
-      images: user.avatarUrl ? [{ url: user.avatarUrl }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${user.displayName} (@${user.username})`,
+      description: user.bio || `${user.displayName}님의 프로필 및 링크 모음`,
     },
   };
 }
