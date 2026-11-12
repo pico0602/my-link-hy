@@ -112,17 +112,45 @@ export function useProfile() {
         unsubscribe();
       };
     } else {
-      // 로그아웃 상태일 때 기본 프로필 복원
-      setProfile((prev) => ({
-        ...prev,
-        username: DEFAULT_PROFILE.username,
-        displayName: DEFAULT_PROFILE.displayName,
-        bio: DEFAULT_PROFILE.bio,
-        email: DEFAULT_PROFILE.email,
-        avatarUrl: DEFAULT_PROFILE.avatarUrl,
-        links: [],
-      }));
-      setIsLoadingLinks(false);
+      // 비로그인 상태일 때 서버 API (/api/links)에서 기본 내 링크 목록 로드하여 서버와 연결
+      setIsLoadingLinks(true);
+      fetch("/api/links")
+        .then((res) => res.json())
+        .then((result) => {
+          if (result.success && result.data?.links) {
+            const serverLinks: LinkItem[] = result.data.links.map((item: any) => ({
+              ...item,
+              iconType: item.iconType || item.icon || "custom",
+              clicks: item.clicks ?? item.clickCount ?? 0,
+              clickCount: item.clickCount ?? item.clicks ?? 0,
+            }));
+            setProfile((prev) => ({
+              ...prev,
+              username: result.data.profile?.handle?.replace("@", "") || DEFAULT_PROFILE.username,
+              displayName: result.data.profile?.name || DEFAULT_PROFILE.displayName,
+              bio: result.data.profile?.bio || DEFAULT_PROFILE.bio,
+              email: result.data.profile?.email || DEFAULT_PROFILE.email,
+              avatarUrl: result.data.profile?.avatarUrl || DEFAULT_PROFILE.avatarUrl,
+              links: serverLinks,
+            }));
+          } else {
+            // 폴백: DEFAULT_PROFILE
+            setProfile((prev) => ({
+              ...prev,
+              links: DEFAULT_PROFILE.links,
+            }));
+          }
+        })
+        .catch((err) => {
+          console.error("서버 링크 불러오기 실패:", err);
+          setProfile((prev) => ({
+            ...prev,
+            links: DEFAULT_PROFILE.links,
+          }));
+        })
+        .finally(() => {
+          setIsLoadingLinks(false);
+        });
     }
   }, [isMounted, user]);
 
@@ -185,14 +213,61 @@ export function useProfile() {
 
   // 링크 클릭 트래킹 및 이동
   const handleLinkClick = useCallback((linkId: string, url?: string) => {
-    // 프로필 관리 페이지(/)에서는 본인의 확인/편집 목적 클릭이므로 통계 객관성을 위해 조회수를 증가시키지 않습니다.
-    console.info("[통계 제외] 프로필 소유자 확인용 클릭입니다. (조회수 미증가)", { linkId });
+    // 1. 비로그인 방문자 클릭 시 서버(/api/links)에 클릭수 전송
+    if (!user) {
+      try {
+        fetch("/api/links", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ linkId }),
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+    } else {
+      // 프로필 관리 페이지(/)에서는 본인의 확인/편집 목적 클릭이므로 통계 객관성을 위해 조회수를 증가시키지 않습니다.
+      console.info("[통계 제외] 프로필 소유자 확인용 클릭입니다. (조회수 미증가)", { linkId });
+    }
 
     // 링크는 새 탭으로 열림 (target='_blank') fallback
     if (url && typeof window !== "undefined") {
       window.open(url, "_blank", "noopener,noreferrer");
     }
-  }, []);
+  }, [user]);
+
+  // 기본 내 링크를 Firestore 서버에 연결(일괄 등록)
+  const handleSyncDefaultLinksToServer = useCallback(async () => {
+    if (!user) {
+      showToast("서버에 링크를 연결하려면 먼저 로그인이 필요해요.");
+      return;
+    }
+
+    try {
+      setIsLoadingLinks(true);
+      const linksToSync = DEFAULT_PROFILE.links;
+      let count = 0;
+
+      for (const link of linksToSync) {
+        await addLinkToFirestore(user.uid, {
+          title: link.title,
+          url: link.url,
+          subtitle: link.subtitle,
+          category: (link.category as any) || "project",
+          badge: link.badge,
+          badgeColor: link.badgeColor,
+          iconType: link.iconType,
+        });
+        count++;
+      }
+
+      showToast(`${count}개의 링크가 서버에 성공적으로 연결되었어요!`);
+    } catch (error) {
+      console.error("서버 링크 동기화 오류:", error);
+      showToast("서버에 링크를 연결하는 중 문제가 발생했어요.");
+    } finally {
+      setIsLoadingLinks(false);
+    }
+  }, [user, showToast]);
 
   // 링크 추가 (Firestore users/{user.uid}/links에 저장)
   const handleAddLink = useCallback(
@@ -393,5 +468,6 @@ export function useProfile() {
     handleDeleteLink,
     handleUpdateProfile,
     handleCheckUsername,
+    handleSyncDefaultLinksToServer,
   };
 }

@@ -35,6 +35,7 @@ export default function HomePage() {
     handleUpdateLink,
     handleDeleteLink,
     handleUpdateProfile,
+    handleSyncDefaultLinksToServer,
   } = useProfile();
 
   const handleOpenEditProfile = async () => {
@@ -99,7 +100,7 @@ export default function HomePage() {
           />
         )}
 
-        {/* 5. 로그인 상태에 따른 화면 구성 */}
+        {/* 5. 로그인 상태 및 링크 리스트 화면 구성 */}
         {authLoading ? (
           <div className="rounded-3xl bg-white p-8 text-center border border-[#E5E8EB]">
             <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[#3182F6] border-t-transparent" />
@@ -107,23 +108,29 @@ export default function HomePage() {
               계정 정보를 불러오는 중...
             </p>
           </div>
-        ) : user ? (
-          /* 로그인 상태: 개인화된 users/{user.uid}/links 링크 리스트 및 관리 기능 */
-          <LinkList
-            links={profile.links}
-            isLoading={isLoadingLinks}
-            onLinkClick={handleLinkClick}
-            onAddLink={handleAddLink}
-            onUpdateLink={handleUpdateLink}
-            onDeleteLink={handleDeleteLink}
-          />
         ) : (
-          /* 비로그인 상태: 로그인 후 이용 설명 안내 카드 */
-          <LoginPromptCard
-            onLoginSuccess={(userName) => {
-              showToast(`${userName}님, 환영합니다!`);
-            }}
-          />
+          <>
+            {/* 비로그인 상태: 로그인 유도 및 전용 저장소 안내 카드 */}
+            {!user && (
+              <LoginPromptCard
+                onLoginSuccess={(userName) => {
+                  showToast(`${userName}님, 환영합니다!`);
+                }}
+              />
+            )}
+
+            {/* 바로가기 링크 리스트 (서버 연동: 로그인 시 Firestore, 비로그인 시 서버 API /api/links) */}
+            <LinkList
+              links={profile.links}
+              isLoading={isLoadingLinks}
+              isLoggedIn={!!user}
+              onLinkClick={handleLinkClick}
+              onAddLink={user ? handleAddLink : undefined}
+              onUpdateLink={user ? handleUpdateLink : undefined}
+              onDeleteLink={user ? handleDeleteLink : undefined}
+              onSyncDefaultLinks={user ? handleSyncDefaultLinksToServer : undefined}
+            />
+          </>
         )}
 
         {/* 6. 소셜 아이콘 바 */}

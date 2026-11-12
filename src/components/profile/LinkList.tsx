@@ -27,6 +27,7 @@ import { formatRelativeTime } from "@/lib/utils";
 interface LinkListProps {
   links: LinkItem[];
   isLoading?: boolean;
+  isLoggedIn?: boolean;
   onLinkClick: (id: string, url?: string) => void;
   onAddLink?: (data: {
     title: string;
@@ -39,6 +40,7 @@ interface LinkListProps {
   }) => void | Promise<any>;
   onUpdateLink?: (id: string, data: Partial<AddLinkInput>) => void | Promise<any>;
   onDeleteLink?: (id: string) => void | Promise<any>;
+  onSyncDefaultLinks?: () => void | Promise<any>;
 }
 
 const CATEGORIES: CategoryItem[] = [
@@ -106,14 +108,17 @@ function renderLinkIcon(link: LinkItem) {
 export function LinkList({
   links,
   isLoading = false,
+  isLoggedIn = false,
   onLinkClick,
   onAddLink,
   onUpdateLink,
   onDeleteLink,
+  onSyncDefaultLinks,
 }: LinkListProps) {
   const [activeCategory, setActiveCategory] = useState<LinkCategoryType>("all");
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
   const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // createdAt 기준 최신순(내림차순) 정렬 보장
   const activeLinks = links
@@ -129,6 +134,16 @@ export function LinkList({
       ? activeLinks
       : activeLinks.filter((link) => link.category === activeCategory);
 
+  const handleSync = async () => {
+    if (!onSyncDefaultLinks) return;
+    try {
+      setIsSyncing(true);
+      await onSyncDefaultLinks();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <>
       <Card className="overflow-hidden">
@@ -142,6 +157,11 @@ export function LinkList({
               <Badge variant="default" className="rounded-full">
                 {displayedLinks.length}
               </Badge>
+              {/* 서버 연동 상태 표시 배너 */}
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#E8F8EE] text-[#00A352]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00B460] animate-pulse" />
+                {isLoggedIn ? "Firestore 연동" : "서버 API 연동"}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[12px] text-[#8B95A1]">최신순</span>
@@ -172,18 +192,30 @@ export function LinkList({
               <p className="text-[13px] text-[#8B95A1]">링크 목록을 불러오는 중...</p>
             </div>
           ) : displayedLinks.length === 0 ? (
-            <div className="py-10 text-center px-4">
+            <div className="py-10 text-center px-4 space-y-3">
               <p className="text-[14px] font-medium text-[#4E5968] mb-1">
                 등록된 링크가 없어요
               </p>
-              <p className="text-[12px] text-[#8B95A1] mb-4">
+              <p className="text-[12px] text-[#8B95A1] max-w-[320px] mx-auto">
                 {activeCategory === "all"
-                  ? "상단의 '링크 추가' 버튼을 눌러 첫 링크를 추가해 보세요."
+                  ? "기본 내 링크를 서버에 연결하거나, 상단의 '링크 추가' 버튼으로 새 링크를 추가해 보세요."
                   : "해당 카테고리에 등록된 링크가 없습니다."}
               </p>
-              {onAddLink && activeCategory === "all" && (
-                <AddLinkDialog onAddLink={onAddLink} />
-              )}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {onSyncDefaultLinks && activeCategory === "all" && (
+                  <button
+                    type="button"
+                    onClick={handleSync}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-[#3182F6] hover:bg-[#1B64DA] rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSyncing ? "서버에 연결하는 중..." : "기본 내 링크 서버에 연결하기"}
+                  </button>
+                )}
+                {onAddLink && activeCategory === "all" && (
+                  <AddLinkDialog onAddLink={onAddLink} />
+                )}
+              </div>
             </div>
           ) : (
             displayedLinks.map((link) => {
