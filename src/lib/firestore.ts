@@ -448,7 +448,7 @@ export async function checkUsernameAvailable(
 
 /**
  * 이메일 주소에서 기본 username을 자동 생성합니다.
- * 예: "chaeyoon.lim@gmail.com" -> "chaeyoon.lim"
+ * 예: "chaeyun.yim@gmail.com" -> "chaeyun.yim"
  */
 export function generateDefaultUsername(email?: string | null): string {
   if (!email) {
@@ -821,10 +821,12 @@ export async function findUserByDisplayName(
       };
     }
 
-    // 5. 기본 데모 프로필(DEFAULT_PROFILE) 호환 (임채윤 / chaeyoon)
+    // 5. 기본 데모 프로필(DEFAULT_PROFILE) 호환 (임채윤 / chaeyun / chaeyoon)
     if (
       queryTerm === DEFAULT_PROFILE.displayName ||
-      cleanUsername === DEFAULT_PROFILE.username.toLowerCase()
+      cleanUsername === DEFAULT_PROFILE.username.toLowerCase() ||
+      cleanUsername === "chaeyun" ||
+      cleanUsername === "chaeyoon"
     ) {
       return {
         userId: ANONYMOUS_DOC_ID,
@@ -841,10 +843,12 @@ export async function findUserByDisplayName(
     return null;
   } catch (error) {
     console.error("findUserByDisplayName 오류:", error);
-    // Firestore 조회 실패 시에도 기본 프로필(임채윤/chaeyoon) 매칭 시 fallback
+    // Firestore 조회 실패 시에도 기본 프로필(임채윤/chaeyun) 매칭 시 fallback
     if (
       queryTerm === DEFAULT_PROFILE.displayName ||
-      queryTerm.replace(/^@/, "").toLowerCase() === DEFAULT_PROFILE.username.toLowerCase()
+      queryTerm.replace(/^@/, "").toLowerCase() === DEFAULT_PROFILE.username.toLowerCase() ||
+      queryTerm.replace(/^@/, "").toLowerCase() === "chaeyun" ||
+      queryTerm.replace(/^@/, "").toLowerCase() === "chaeyoon"
     ) {
       return {
         userId: ANONYMOUS_DOC_ID,

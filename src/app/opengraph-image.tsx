@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import fs from "fs";
+import path from "path";
 import { getOgFonts } from "@/lib/og-font";
 
 export const alt = "마이링크 (MyLink) - 나만의 프로필 및 링크 모음";
@@ -8,8 +10,25 @@ export const size = {
 };
 export const contentType = "image/png";
 
+async function loadDefaultAvatarBase64(): Promise<string | null> {
+  const defaultLocalPath = path.join(process.cwd(), "public", "images", "profile-avatar.jpg");
+  try {
+    if (fs.existsSync(defaultLocalPath)) {
+      const fileBuffer = await fs.promises.readFile(defaultLocalPath);
+      return `data:image/jpeg;base64,${fileBuffer.toString("base64")}`;
+    }
+  } catch (err) {
+    console.warn("기본 아바타 로드 실패:", err);
+  }
+  return null;
+}
+
 export default async function OpenGraphImage() {
   const fonts = await getOgFonts();
+  const avatarBase64 = await loadDefaultAvatarBase64();
+
+  const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://my-link.hy";
+  const displayUrl = rawSiteUrl.replace(/^https?:\/\//, "");
 
   return new ImageResponse(
     (
@@ -35,6 +54,7 @@ export default async function OpenGraphImage() {
             width: 480,
             height: 480,
             borderRadius: "50%",
+            display: "flex",
             background: "radial-gradient(circle, rgba(49, 130, 246, 0.15) 0%, rgba(49, 130, 246, 0) 70%)",
           }}
         />
@@ -46,6 +66,7 @@ export default async function OpenGraphImage() {
             width: 460,
             height: 460,
             borderRadius: "50%",
+            display: "flex",
             background: "radial-gradient(circle, rgba(49, 130, 246, 0.12) 0%, rgba(49, 130, 246, 0) 70%)",
           }}
         />
@@ -66,7 +87,7 @@ export default async function OpenGraphImage() {
             position: "relative",
           }}
         >
-          {/* 상단 헤더: 로고 & 뱃지 */}
+          {/* 상단 헤더: 로고 & 뱃지 & URL */}
           <div
             style={{
               display: "flex",
@@ -145,6 +166,7 @@ export default async function OpenGraphImage() {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
+                    display: "flex",
                     backgroundColor: "#3182F6",
                   }}
                 />
@@ -172,7 +194,7 @@ export default async function OpenGraphImage() {
                   color: "#4E5968",
                 }}
               >
-                my-link.hy
+                {displayUrl}
               </div>
             </div>
           </div>
@@ -277,7 +299,7 @@ export default async function OpenGraphImage() {
               </div>
             </div>
 
-            {/* 우측 프리뷰 미니어처 카드 */}
+            {/* 우측 프리뷰 미니어처 카드 (3D 아바타 적용) */}
             <div
               style={{
                 width: 320,
@@ -291,29 +313,45 @@ export default async function OpenGraphImage() {
                 boxShadow: "0 10px 24px -6px rgba(0, 0, 0, 0.04)",
               }}
             >
-              {/* 미니 프로필 */}
+              {/* 미니 프로필: 둥근 원형 3D 아바타 */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
-                    backgroundColor: "#3182F6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#FFFFFF",
-                    fontSize: 20,
-                    fontWeight: 700,
-                  }}
-                >
-                  채
-                </div>
+                {avatarBase64 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarBase64}
+                    alt="Chaeyoon"
+                    width="52"
+                    height="52"
+                    style={{
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "2px solid #FFFFFF",
+                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: "50%",
+                      backgroundColor: "#3182F6",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#FFFFFF",
+                      fontSize: 22,
+                      fontWeight: 700,
+                    }}
+                  >
+                    채
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: "#191F28" }}>
                     임채윤 (Chaeyoon)
                   </span>
-                  <span style={{ fontSize: 12, color: "#8B95A1" }}>@chaeyoon · 대학생 메이커</span>
+                  <span style={{ fontSize: 12, color: "#8B95A1" }}>@chaeyun · 대학생 메이커</span>
                 </div>
               </div>
 

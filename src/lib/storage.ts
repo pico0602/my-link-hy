@@ -4,12 +4,12 @@ export const STORAGE_KEY = "my-link-hy-store";
 export const HAS_LIKED_KEY = "my-link-hy-has-liked";
 
 export const DEFAULT_PROFILE: UserLinkPage = {
-  username: "chaeyoon",
+  username: "chaeyun",
   displayName: "임채윤",
   bio: "안녕하세요, 바이브 코딩을 통해 유용한 프로덕트를 만들어가고 있어요. 새로운 기술과 일상의 문제를 잇는 것에 관심이 많아요.",
   badge: "대학생 메이커",
-  avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-  email: "chaeyoon.lim@example.com",
+  avatarUrl: "/images/profile-avatar.jpg",
+  email: "chaeyun.yim@example.com",
   status: "활발히 코딩 중",
   focusArea: "Next.js 16 & AI",
   likes: 128,
@@ -26,7 +26,7 @@ export const DEFAULT_PROFILE: UserLinkPage = {
     github: "https://github.com",
     instagram: "https://instagram.com",
     linkedin: "https://linkedin.com",
-    email: "mailto:chaeyoon.lim@example.com",
+    email: "mailto:chaeyun.yim@example.com",
   },
   theme: {
     presetId: "toss",
@@ -165,8 +165,8 @@ export const DEFAULT_PROFILE: UserLinkPage = {
     {
       id: "contact-mail",
       title: "공식 업무 및 협업 이메일",
-      subtitle: "chaeyoon.lim@example.com (클릭 시 메일 작성창 연결)",
-      url: "mailto:chaeyoon.lim@example.com",
+      subtitle: "chaeyun.yim@example.com (클릭 시 메일 작성창 연결)",
+      url: "mailto:chaeyun.yim@example.com",
       category: "contact",
       badge: "문의",
       badgeColor: "#333D4B",

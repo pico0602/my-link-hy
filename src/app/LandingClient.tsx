@@ -291,7 +291,7 @@ export function LandingClient() {
               <div className="mt-6 rounded-2xl border border-[#E5E8EB] bg-white p-3.5 shadow-xs">
                 <div className="text-[11px] font-medium text-[#8B95A1] mb-1.5">내 고유 주소 예시</div>
                 <div className="flex items-center justify-between rounded-xl bg-[#F2F4F6] px-3 py-2 text-xs font-semibold text-[#3182F6]">
-                  <span className="truncate">mylink.hy/chaeyoon</span>
+                  <span className="truncate">mylink.hy/chaeyun</span>
                   <span className="shrink-0 rounded-md bg-[#3182F6]/10 px-2 py-0.5 text-[11px] text-[#3182F6]">
                     복사
                   </span>
@@ -393,7 +393,7 @@ export function LandingClient() {
 
                     <h3 className="text-lg font-bold text-[#191F28] flex items-center gap-1.5">
                       <span>임채윤</span>
-                      <span className="text-xs font-normal text-[#8B95A1]">@chaeyoon</span>
+                      <span className="text-xs font-normal text-[#8B95A1]">@chaeyun</span>
                     </h3>
                     <p className="mt-1 text-xs text-[#4E5968] max-w-[240px] line-clamp-2">
                       한양대학교 컴퓨터소프트웨어학부 · 기술로 일상을 더 편리하게 만드는 엔지니어
@@ -436,7 +436,7 @@ export function LandingClient() {
                         </div>
                         <div className="text-left">
                           <div className="text-xs font-bold text-[#191F28]">포트폴리오 웹사이트</div>
-                          <div className="text-[10px] text-[#8B95A1]">chaeyoon.dev</div>
+                          <div className="text-[10px] text-[#8B95A1]">chaeyun.dev</div>
                         </div>
                       </div>
                       <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#3182F6] border border-[#E5E8EB]">
@@ -452,7 +452,7 @@ export function LandingClient() {
                         </div>
                         <div className="text-left">
                           <div className="text-xs font-bold text-[#191F28]">기술 블로그 (Velog)</div>
-                          <div className="text-[10px] text-[#8B95A1]">velog.io/@chaeyoon</div>
+                          <div className="text-[10px] text-[#8B95A1]">velog.io/@chaeyun</div>
                         </div>
                       </div>
                       <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#3182F6] border border-[#E5E8EB]">

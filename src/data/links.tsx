@@ -157,8 +157,8 @@ export const DUMMY_LINKS: LinkItemWithIcon[] = [
   {
     id: "contact-mail",
     title: "공식 업무 및 협업 이메일",
-    subtitle: "chaeyoon.lim@example.com (클릭 시 메일 작성창 연결)",
-    url: "mailto:chaeyoon.lim@example.com",
+    subtitle: "chaeyun.yim@example.com (클릭 시 메일 작성창 연결)",
+    url: "mailto:chaeyun.yim@example.com",
     category: "contact",
     badge: "문의",
     badgeColor: "#333D4B",

@@ -231,7 +231,7 @@ export function EditProfileDialog({
                 id="username"
                 type="text"
                 disabled={isSubmitting}
-                placeholder="chaeyoon"
+                placeholder="chaeyun"
                 className={`pl-8 pr-10 text-[14px] h-11 rounded-xl bg-[#F9FAFB] border transition-colors ${
                   errors.username || usernameStatus === "duplicate"
                     ? "border-red-400 focus:border-red-500 bg-red-50/20"

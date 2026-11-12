@@ -156,7 +156,7 @@ export function useProfile() {
 
   // 이메일 복사
   const handleCopyEmail = useCallback(() => {
-    const email = profile.email || "chaeyoon.lim@example.com";
+    const email = profile.email || "chaeyun.yim@example.com";
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(email);
     }

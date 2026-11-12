@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import fs from "fs";
+import path from "path";
 import { findUserByDisplayName, getLinksFromFirestore } from "@/lib/firestore";
 import { DEFAULT_PROFILE } from "@/lib/storage";
 import { getOgFonts } from "@/lib/og-font";
@@ -22,24 +24,57 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Pro
 }
 
 /**
- * 외부 프로필 이미지를 Satori가 안전하게 렌더링할 수 있도록 base64 Data URL로 변환
+ * 프로필 이미지를 Satori가 항상 즉각적이고 안정적으로 렌더링할 수 있도록 base64 Data URL로 로드합니다.
+ * 로컬 파일 우선 및 외부 URL fetch fallback 전략을 사용합니다.
  */
-async function fetchImageAsBase64(url: string | null | undefined, ms = 1500): Promise<string | null> {
-  if (!url) return null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return null;
-    const mimeType = res.headers.get("content-type") || "image/jpeg";
-    const arrayBuffer = await res.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    return `data:${mimeType};base64,${base64}`;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+async function loadAvatarAsBase64(avatarUrl?: string | null): Promise<string | null> {
+  const defaultLocalPath = path.join(process.cwd(), "public", "images", "profile-avatar.jpg");
+
+  // 1. 로컬 경로 (/images/...) 이거나 없을 때 로컬 파일 로드
+  if (!avatarUrl || avatarUrl.startsWith("/")) {
+    const targetPath = avatarUrl
+      ? path.join(process.cwd(), "public", avatarUrl.replace(/^\//, ""))
+      : defaultLocalPath;
+    try {
+      if (fs.existsSync(targetPath)) {
+        const fileBuffer = await fs.promises.readFile(targetPath);
+        return `data:image/jpeg;base64,${fileBuffer.toString("base64")}`;
+      }
+      if (fs.existsSync(defaultLocalPath)) {
+        const fileBuffer = await fs.promises.readFile(defaultLocalPath);
+        return `data:image/jpeg;base64,${fileBuffer.toString("base64")}`;
+      }
+    } catch (err) {
+      console.warn("로컬 아바타 로드 실패:", err);
+    }
   }
+
+  // 2. 외부 URL인 경우 fetch 시도
+  if (avatarUrl && (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://"))) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(avatarUrl, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const mimeType = res.headers.get("content-type") || "image/jpeg";
+        const buf = await res.arrayBuffer();
+        return `data:${mimeType};base64,${Buffer.from(buf).toString("base64")}`;
+      }
+    } catch {
+      // 외부 fetch 실패 시 기본 아바타로 대체
+    }
+  }
+
+  // 3. Fallback: 기본 로컬 아바타
+  try {
+    if (fs.existsSync(defaultLocalPath)) {
+      const fileBuffer = await fs.promises.readFile(defaultLocalPath);
+      return `data:image/jpeg;base64,${fileBuffer.toString("base64")}`;
+    }
+  } catch {}
+
+  return null;
 }
 
 export default async function Image({ params }: Props) {
@@ -89,7 +124,7 @@ export default async function Image({ params }: Props) {
       (isDefaultMatch
         ? DEFAULT_PROFILE.bio
         : `${decodedName || "사용자"}님의 공식 마이링크 프로필 공간입니다. 다양한 프로젝트와 소셜 링크를 확인해보세요.`),
-    avatarUrl: user?.avatarUrl || (isDefaultMatch ? DEFAULT_PROFILE.avatarUrl : null),
+    avatarUrl: user?.avatarUrl || (isDefaultMatch ? DEFAULT_PROFILE.avatarUrl : "/images/profile-avatar.jpg"),
     status: isDefaultMatch ? DEFAULT_PROFILE.status : "활발히 활동 중",
     focusArea: isDefaultMatch ? DEFAULT_PROFILE.focusArea : "Maker & Creator",
     likes: user?.likes ?? (isDefaultMatch ? DEFAULT_PROFILE.likes : 42),
@@ -114,8 +149,8 @@ export default async function Image({ params }: Props) {
           { title: "소셜 미디어 & 블로그", category: "social" },
         ];
 
-  // 1. 프로필 이미지 (둥근 원형) Data URL 로드
-  const avatarBase64 = await fetchImageAsBase64(profile.avatarUrl);
+  // 1. 프로필 이미지: 통일성 있는 고화질 3D 아바타 로드
+  const avatarBase64 = await loadAvatarAsBase64(profile.avatarUrl);
   const firstChar = profile.displayName.charAt(0) || "U";
   const truncatedBio =
     profile.bio.length > 68 ? profile.bio.slice(0, 68) + "..." : profile.bio;
@@ -289,14 +324,14 @@ export default async function Image({ params }: Props) {
             >
               {/* 프로필 이미지 (둥근 원형) + 이름 & 뱃지 영역 */}
               <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
-                {/* 1. 프로필 이미지: 둥근 원형 */}
+                {/* 1. 프로필 이미지: 둥근 원형 (고화질 통일성 아바타) */}
                 {avatarBase64 ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={avatarBase64}
                     alt={profile.displayName}
-                    width="96"
-                    height="96"
+                    width="100"
+                    height="100"
                     style={{
                       borderRadius: "50%",
                       objectFit: "cover",
@@ -307,8 +342,8 @@ export default async function Image({ params }: Props) {
                 ) : (
                   <div
                     style={{
-                      width: 96,
-                      height: 96,
+                      width: 100,
+                      height: 100,
                       borderRadius: "50%",
                       background: "linear-gradient(135deg, #3182F6 0%, #1B64DA 100%)",
                       color: "#FFFFFF",

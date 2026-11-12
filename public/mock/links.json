@@ -1,10 +1,10 @@
 {
   "profile": {
     "name": "임채윤",
-    "handle": "@chaeyoon",
+    "handle": "@chaeyun",
     "role": "대학생 메이커",
     "bio": "안녕하세요, 바이브 코딩을 통해 유용한 프로덕트를 만들어가고 있어요. 새로운 기술과 일상의 문제를 잇는 것에 관심이 많아요.",
-    "email": "chaeyoon.lim@example.com",
+    "email": "chaeyun.yim@example.com",
     "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
     "status": "활발히 코딩 중",
     "focusArea": "Next.js 16 & AI"
@@ -140,8 +140,8 @@
     {
       "id": "contact-mail",
       "title": "공식 업무 및 협업 이메일",
-      "subtitle": "chaeyoon.lim@example.com (클릭 시 메일 작성창 연결)",
-      "url": "mailto:chaeyoon.lim@example.com",
+      "subtitle": "chaeyun.yim@example.com (클릭 시 메일 작성창 연결)",
+      "url": "mailto:chaeyun.yim@example.com",
       "category": "contact",
       "badge": "문의",
       "badgeColor": "#333D4B",
