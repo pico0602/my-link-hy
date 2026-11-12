@@ -128,34 +128,52 @@ export default async function OpenGraphImage() {
               </div>
             </div>
 
-            {/* TDS 태그 뱃지 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: "#E8F3FF",
-                padding: "8px 18px",
-                borderRadius: 9999,
-              }}
-            >
+            {/* TDS 태그 뱃지 & URL */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  backgroundColor: "#3182F6",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "#3182F6",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  backgroundColor: "#E8F3FF",
+                  padding: "8px 18px",
+                  borderRadius: 9999,
                 }}
               >
-                Personal Link-in-bio
-              </span>
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    backgroundColor: "#3182F6",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "#3182F6",
+                  }}
+                >
+                  Personal Link-in-bio
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  backgroundColor: "#F2F4F6",
+                  border: "1px solid #E5E8EB",
+                  padding: "8px 16px",
+                  borderRadius: 9999,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#4E5968",
+                }}
+              >
+                my-link.hy
+              </div>
             </div>
           </div>
 

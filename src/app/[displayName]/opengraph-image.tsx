@@ -21,6 +21,27 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Pro
   ]);
 }
 
+/**
+ * 외부 프로필 이미지를 Satori가 안전하게 렌더링할 수 있도록 base64 Data URL로 변환
+ */
+async function fetchImageAsBase64(url: string | null | undefined, ms = 1500): Promise<string | null> {
+  if (!url) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const mimeType = res.headers.get("content-type") || "image/jpeg";
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    return `data:${mimeType};base64,${base64}`;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default async function Image({ params }: Props) {
   const { displayName } = await params;
   const decodedName = decodeURIComponent(displayName || "").trim();
@@ -28,7 +49,7 @@ export default async function Image({ params }: Props) {
   // 폰트 로드
   const fonts = await getOgFonts();
 
-  // Firestore 사용자 데이터 및 링크 조회 (최대 1.5초 타임아웃으로 안전 보장)
+  // Firestore 사용자 데이터 및 링크 조회
   let user = null;
   let fetchedLinks: { title: string; subtitle?: string; category?: string }[] = [];
 
@@ -50,7 +71,7 @@ export default async function Image({ params }: Props) {
         }
       }
     } catch {
-      // 조회 실패 시 fallback 사용
+      // 조회 실패 시 fallback
     }
   }
 
@@ -68,11 +89,20 @@ export default async function Image({ params }: Props) {
       (isDefaultMatch
         ? DEFAULT_PROFILE.bio
         : `${decodedName || "사용자"}님의 공식 마이링크 프로필 공간입니다. 다양한 프로젝트와 소셜 링크를 확인해보세요.`),
+    avatarUrl: user?.avatarUrl || (isDefaultMatch ? DEFAULT_PROFILE.avatarUrl : null),
     status: isDefaultMatch ? DEFAULT_PROFILE.status : "활발히 활동 중",
     focusArea: isDefaultMatch ? DEFAULT_PROFILE.focusArea : "Maker & Creator",
     likes: user?.likes ?? (isDefaultMatch ? DEFAULT_PROFILE.likes : 42),
     tags: isDefaultMatch ? DEFAULT_PROFILE.tags.slice(0, 4) : ["마이링크", "포트폴리오", "프로필"],
   };
+
+  // 링크 개수 계산 (2. 링크 배지 요구사항)
+  const linkCount =
+    fetchedLinks.length > 0
+      ? fetchedLinks.length
+      : isDefaultMatch
+      ? DEFAULT_PROFILE.links.length
+      : 4;
 
   const displayLinks =
     fetchedLinks.length > 0
@@ -84,9 +114,15 @@ export default async function Image({ params }: Props) {
           { title: "소셜 미디어 & 블로그", category: "social" },
         ];
 
+  // 1. 프로필 이미지 (둥근 원형) Data URL 로드
+  const avatarBase64 = await fetchImageAsBase64(profile.avatarUrl);
   const firstChar = profile.displayName.charAt(0) || "U";
   const truncatedBio =
     profile.bio.length > 68 ? profile.bio.slice(0, 68) + "..." : profile.bio;
+
+  // 3. 브랜딩: 도메인 URL 표기
+  const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://my-link.hy";
+  const displayUrl = rawSiteUrl.replace(/^https?:\/\//, "");
 
   return new ImageResponse(
     (
@@ -139,13 +175,13 @@ export default async function Image({ params }: Props) {
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            padding: "40px 48px",
+            padding: "38px 46px",
             boxShadow: "0 24px 50px -12px rgba(0, 0, 0, 0.08), 0 0 1px 1px rgba(0, 0, 0, 0.04)",
             border: "1px solid #E5E8EB",
             position: "relative",
           }}
         >
-          {/* 상단 브랜딩 바 */}
+          {/* [요구사항 3] 상단 브랜딩 바: "마이링크" 로고 + URL */}
           <div
             style={{
               display: "flex",
@@ -154,23 +190,23 @@ export default async function Image({ params }: Props) {
               width: "100%",
             }}
           >
-            {/* 좌측 브랜드 로고 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* 좌측: 마이링크 로고 & 핸들 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 12,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 13,
                   backgroundColor: "#3182F6",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: "0 4px 10px rgba(49, 130, 246, 0.3)",
+                  boxShadow: "0 4px 12px rgba(49, 130, 246, 0.35)",
                 }}
               >
                 <svg
-                  width="20"
-                  height="20"
+                  width="22"
+                  height="22"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#FFFFFF"
@@ -183,37 +219,50 @@ export default async function Image({ params }: Props) {
                 </svg>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: "#191F28" }}>
+                <span
+                  style={{
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: "#191F28",
+                    letterSpacing: "-0.5px",
+                  }}
+                >
                   마이링크
                 </span>
                 <span style={{ fontSize: 16, color: "#8B95A1", fontWeight: 500 }}>
-                  @{profile.username}
+                  · @{profile.username}
                 </span>
               </div>
             </div>
 
-            {/* 우측 공식 프로필 뱃지 */}
+            {/* 우측: 브랜드 URL 배지 */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                backgroundColor: "#E8F3FF",
+                backgroundColor: "#F2F4F6",
                 padding: "8px 16px",
                 borderRadius: 9999,
+                border: "1px solid #E5E8EB",
               }}
             >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  display: "flex",
-                  backgroundColor: "#3182F6",
-                }}
-              />
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#3182F6" }}>
-                공식 프로필
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#4E5968"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#4E5968" }}>
+                {displayUrl}/{profile.username}
               </span>
             </div>
           </div>
@@ -225,12 +274,12 @@ export default async function Image({ params }: Props) {
               alignItems: "center",
               justifyContent: "space-between",
               width: "100%",
-              gap: 40,
+              gap: 36,
               marginTop: 10,
               marginBottom: 10,
             }}
           >
-            {/* 좌측: 유저 프로필 상세 */}
+            {/* [요구사항 1] 좌측: 유저 프로필 정보 (이름, 둥근 원형 프로필 이미지, 소개글) */}
             <div
               style={{
                 display: "flex",
@@ -238,29 +287,46 @@ export default async function Image({ params }: Props) {
                 flex: 1,
               }}
             >
-              {/* 아바타 & 이름 & 뱃지 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 16 }}>
-                {/* TDS 토스 스타일 시그니처 아바타 */}
-                <div
-                  style={{
-                    width: 86,
-                    height: 86,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #3182F6 0%, #1B64DA 100%)",
-                    color: "#FFFFFF",
-                    fontSize: 36,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 8px 20px rgba(49, 130, 246, 0.35)",
-                    border: "3px solid #FFFFFF",
-                  }}
-                >
-                  {firstChar}
-                </div>
+              {/* 프로필 이미지 (둥근 원형) + 이름 & 뱃지 영역 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
+                {/* 1. 프로필 이미지: 둥근 원형 */}
+                {avatarBase64 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarBase64}
+                    alt={profile.displayName}
+                    width="96"
+                    height="96"
+                    style={{
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "3px solid #FFFFFF",
+                      boxShadow: "0 10px 24px rgba(0, 0, 0, 0.12), 0 0 0 2px #E5E8EB",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #3182F6 0%, #1B64DA 100%)",
+                      color: "#FFFFFF",
+                      fontSize: 40,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 10px 24px rgba(49, 130, 246, 0.35)",
+                      border: "3px solid #FFFFFF",
+                    }}
+                  >
+                    {firstChar}
+                  </div>
+                )}
 
                 <div style={{ display: "flex", flexDirection: "column" }}>
+                  {/* 이름 & 뱃지 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span
                       style={{
@@ -287,16 +353,47 @@ export default async function Image({ params }: Props) {
                       </span>
                     )}
                   </div>
-                  <span
-                    style={{
-                      fontSize: 17,
-                      color: "#8B95A1",
-                      marginTop: 2,
-                      fontWeight: 500,
-                    }}
-                  >
-                    @{profile.username}
-                  </span>
+
+                  {/* [요구사항 2] 링크 배지: "N개의 링크" 표시 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <span
+                      style={{
+                        fontSize: 16,
+                        color: "#8B95A1",
+                        fontWeight: 500,
+                      }}
+                    >
+                      @{profile.username}
+                    </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        backgroundColor: "#E8F3FF",
+                        padding: "3px 10px",
+                        borderRadius: 9999,
+                        border: "1px solid #CBE3FF",
+                      }}
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#3182F6"
+                        strokeWidth="2.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#3182F6" }}>
+                        {linkCount}개의 링크
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -311,7 +408,7 @@ export default async function Image({ params }: Props) {
                   border: "1px solid #E5E8EB",
                   padding: "6px 14px",
                   borderRadius: 12,
-                  marginBottom: 14,
+                  marginBottom: 12,
                 }}
               >
                 <div
@@ -333,15 +430,15 @@ export default async function Image({ params }: Props) {
                 )}
               </div>
 
-              {/* 자기소개 (Bio) */}
+              {/* 1. 소개글 (Bio) */}
               <p
                 style={{
                   fontSize: 17,
                   color: "#4E5968",
                   lineHeight: 1.45,
                   margin: 0,
-                  marginBottom: 16,
-                  maxWidth: 500,
+                  marginBottom: 14,
+                  maxWidth: 510,
                   fontWeight: 400,
                 }}
               >
@@ -383,7 +480,7 @@ export default async function Image({ params }: Props) {
                 boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.04)",
               }}
             >
-              {/* 통계 바 */}
+              {/* 통계 바: [요구사항 2] "N개의 링크" 강조 */}
               <div
                 style={{
                   display: "flex",
@@ -395,17 +492,28 @@ export default async function Image({ params }: Props) {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 13, color: "#8B95A1", fontWeight: 500 }}>
-                    총 등록 링크
+                    총 등록
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#191F28" }}>
-                    {fetchedLinks.length > 0 ? fetchedLinks.length : (isDefaultMatch ? DEFAULT_PROFILE.links.length : 4)}개
-                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      backgroundColor: "#E8F3FF",
+                      padding: "3px 10px",
+                      borderRadius: 9999,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#3182F6" }}>
+                      {linkCount}개의 링크
+                    </span>
+                  </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 13, color: "#8B95A1", fontWeight: 500 }}>
                     응원 하트
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#E11D48" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#E11D48" }}>
                     ♥ {profile.likes}
                   </span>
                 </div>
@@ -486,12 +594,12 @@ export default async function Image({ params }: Props) {
                   marginTop: 2,
                 }}
               >
-                마이링크에서 전체 링크 확인하기
+                마이링크에서 {linkCount}개의 링크 전체 보기
               </div>
             </div>
           </div>
 
-          {/* 하단 푸터 바 */}
+          {/* [요구사항 3] 하단 푸터 바: "마이링크" 브랜딩 + URL */}
           <div
             style={{
               display: "flex",
@@ -502,9 +610,15 @@ export default async function Image({ params }: Props) {
               width: "100%",
             }}
           >
-            <span style={{ fontSize: 13, color: "#8B95A1", fontWeight: 500 }}>
-              {profile.displayName}님의 공식 마이링크 페이지입니다.
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "#8B95A1", fontWeight: 500 }}>
+                {profile.displayName}님의 공식 마이링크
+              </span>
+              <span style={{ fontSize: 13, color: "#D1D6DB" }}>•</span>
+              <span style={{ fontSize: 13, color: "#3182F6", fontWeight: 600 }}>
+                https://{displayUrl}
+              </span>
+            </div>
 
             <div
               style={{
